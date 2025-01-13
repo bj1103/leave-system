@@ -25,7 +25,7 @@ USERS_DATA_FILE="users_data.pkl"
 
 app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
-handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 users = dict()
 users_data = dict()
@@ -51,7 +51,7 @@ def callback():
 
     # handle webhook body
     try:
-        handler.handle(body, signature)
+        line_handler.handle(body, signature)
     except InvalidSignatureError:
         app.logger.info("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
@@ -59,7 +59,7 @@ def callback():
     return 'OK'
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
+@line_handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     print(event)
     with ApiClient(configuration) as api_client:
