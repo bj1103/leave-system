@@ -17,14 +17,28 @@ from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent
 )
+import pickle
 import os
 from state import *
-app = Flask(__name__)
 
+USERS_DATA_FILE="users_data.pkl"
+
+app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 users = dict()
+users_data = dict()
+
+if os.path.isfile(USERS_DATA_FILE):
+    with open(USERS_DATA_FILE, "rb") as f:
+        users_data = pickle.load(f)
+
+for k, v in users_data.items():
+    users[k] = {
+        "state": Normal(),
+        "user_info": v
+    }
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -65,6 +79,12 @@ def handle_message(event):
                 users[user_id]['user_info']
             )()
             messages = users[user_id]["state"].generate_message(users[user_id]["user_info"])
+            
+            if isinstance(users[user_id]["state"], DataFinish):
+                users_data[user_id] = users[user_id]['user_info']
+                with open(USERS_DATA_FILE, "wb") as f:
+                    pickle.dump(users_data, f)
+
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
                     reply,
