@@ -30,6 +30,14 @@ line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 users = dict()
 users_data = dict()
 
+KEYWORD = {
+    "== 請假 ==",
+    "== 取消請假 ==",
+    "== 查看夜假 ==",
+    "== 查看請假紀錄 ==",
+    "== 今日請假役男 =="
+}
+
 if os.path.isfile(USERS_DATA_FILE):
     with open(USERS_DATA_FILE, "rb") as f:
         users_data = pickle.load(f)
@@ -73,7 +81,10 @@ def handle_message(event):
                     "state": DataCollect(),
                     "user_info": {},
                 }
-            print("before state: ", users[user_id]["state"])
+            elif reply in KEYWORD:
+                users[user_id]["state"] = Normal()
+
+            # print("before state: ", users[user_id]["state"])
             users[user_id]["state"] = users[user_id]["state"].next(
                 reply,
                 users[user_id]['user_info']
@@ -90,7 +101,7 @@ def handle_message(event):
                     reply,
                     users[user_id]['user_info']
                 )()
-            print("After state: ", users[user_id]["state"])
+            # print("After state: ", users[user_id]["state"])
             if messages["user"]:     
                 r = line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(

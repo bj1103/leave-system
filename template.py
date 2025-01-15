@@ -33,7 +33,7 @@ night_timeoff_template = FlexBubble(
                             ),
                             FlexText(
                                 text="到期日",
-                                flex=5,
+                                flex=3,
                                 size="md",
                                 weight="bold"
                             )
@@ -50,6 +50,93 @@ night_timeoff_template = FlexBubble(
                 action=URIAction(
                     label="詳細資料",
                     uri="https://docs.google.com/spreadsheets/d/10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI/edit?usp=sharing"
+                )
+            )
+        ]
+    )
+)
+
+absence_record_template = FlexBubble(
+    body=FlexBox(
+        layout="vertical",
+        contents=[
+            FlexText(
+                text="請假紀錄",
+                weight="bold",
+                size="xl",
+                style="italic"
+            ),
+            FlexBox(
+                layout="vertical",
+                margin="lg",
+                spacing="sm",
+                contents=[]
+            )
+        ]
+    ),
+    footer=FlexBox(
+        layout="vertical",
+        contents=[
+            FlexButton(
+                action=URIAction(
+                    label="詳細資料",
+                    uri="https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing"
+                )
+            )
+        ]
+    )
+)
+
+today_absence_template = FlexBubble(
+    body=FlexBox(
+        layout="vertical",
+        contents=[
+            FlexText(
+                text="今日請假役男: ",
+                weight="bold",
+                size="xl",
+                style="italic"
+            ),
+            FlexBox(
+                layout="vertical",
+                margin="lg",
+                spacing="sm",
+                contents=[
+                    FlexBox(
+                        layout="baseline",
+                        spacing="sm",
+                        contents=[
+                            FlexText(
+                                text="梯次",
+                                flex=3,
+                                size="md",
+                                weight="bold"
+                            ),
+                            FlexText(
+                                text="姓名",
+                                flex=3,
+                                size="md",
+                                weight="bold"
+                            ),
+                            FlexText(
+                                text="假別",
+                                flex=3,
+                                size="md",
+                                weight="bold"
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    ),
+    footer=FlexBox(
+        layout="vertical",
+        contents=[
+            FlexButton(
+                action=URIAction(
+                    label="詳細資料",
+                    uri="https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing"
                 )
             )
         ]
