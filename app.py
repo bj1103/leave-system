@@ -36,14 +36,6 @@ users_col = db['user']
 users = dict()
 # users_data = dict()
 
-KEYWORD = {
-    "== 請假 ==",
-    "== 取消請假 ==",
-    "== 查看夜假 ==",
-    "== 查看請假紀錄 ==",
-    "== 今日請假役男 =="
-}
-
 # if os.path.isfile(USERS_DATA_FILE):
 #     with open(USERS_DATA_FILE, "rb") as f:
 #         users_data = pickle.load(f)

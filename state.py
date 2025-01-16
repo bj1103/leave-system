@@ -25,6 +25,14 @@ service_account_info['private_key'] = service_account_info['private_key'].replac
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
+KEYWORD = {
+    "== 請假 ==",
+    "== 取消請假 ==",
+    "== 查看夜假 ==",
+    "== 查看請假紀錄 ==",
+    "== 今日請假役男 =="
+}
+
 def format_datetime(month, day):
     today = datetime.now(taipei_timezone)
     absence_day = today.replace(month=month, day=day)
@@ -154,7 +162,24 @@ class Normal(State):
         elif user_input == "== 今日請假役男 ==":
             return Administration
         else:
-            return Normal
+            return OutOfScope
+
+class OutOfScope(State):
+    def __init__(self):
+        super(OutOfScope, self).__init__()
+        self.block = False
+
+    def generate_message(self, user_info):
+        message = [TextMessage(
+            text="非有效指令，請重新從選單選擇您要執行的操作",
+        )]
+        return {
+            "user": message,
+            "group": None
+        }
+    
+    def next(self, user_input, user_info):
+        return Normal
 
 class Absence(State):
     def __init__(self):
@@ -180,7 +205,7 @@ class Absence(State):
         elif user_input == "== 查看夜假 ==":
             return CheckNightTimeoff
         else:
-            return Normal
+            return OutOfScope
         
 class AbsenceDate(State):
     def __init__(self):
@@ -237,10 +262,10 @@ class AbsenceDateFormatError(AbsenceDate):
         option_items = []
         if user_info['absence_type'] == '補休':
             options = ['明天', '取消']
-            text = "請輸入請假日期 (Ex. 1/3)，或按'明天'，若要取消請按'取消'"
+            text = "請重新輸入請假日期 (Ex. 1/3)，或按'明天'，若要取消請按'取消'"
         else:
             options = ['今天', '明天', '取消']
-            text = "請輸入請假日期 (Ex. 1/3)，或按'今天'、'明天'，若要取消請按'取消'"
+            text = "請重新輸入請假日期 (Ex. 1/3)，或按'今天'、'明天'，若要取消請按'取消'"
         
         for option in options:
             option_items.append(QuickReplyItem(action=MessageAction(label=option, text=f"{option}")))
@@ -279,8 +304,10 @@ class AbsenceConfirm(State):
                     return OtherTimeoff
             else:
                 return AbsenceLate
-        else:
+        elif user_input == "返回":
             return Normal
+        else:
+            return OutOfScope
 
 class AbsenceLate(State):
     def __init__(self):
@@ -608,11 +635,14 @@ class CancelTimeoff(State):
         if "返回" in user_input:
             return Normal
         else:
-            date, absence_type = user_input.split()
-            year, month, day = [int(x) for x in date.split("/")]
-            user_info['absence_date'] = datetime(year=year, month=month, day=day)
-            user_info['absence_type'] = absence_type
-            return FinishCancelTimeoff
+            try:
+                date, absence_type = user_input.split()
+                year, month, day = [int(x) for x in date.split("/")]
+                user_info['absence_date'] = datetime(year=year, month=month, day=day)
+                user_info['absence_type'] = absence_type
+                return FinishCancelTimeoff
+            except:
+                return OutOfScope
     
 class FinishCancelTimeoff(State):
     def __init__(self):
