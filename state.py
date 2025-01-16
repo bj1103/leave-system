@@ -25,12 +25,17 @@ service_account_info['private_key'] = service_account_info['private_key'].replac
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
+COMMAND_REQUEST_ABSENCE="== 請假 =="
+COMMAND_CANCEL_ABSENCE="== 取消請假 =="
+COMMAND_CHECK_NIGHT_TIMEOFF="== 查看夜假 =="
+COMMAND_CHECK_ABSENCE_RECORD="== 查看請假紀錄 =="
+COMMAND_CHECK_TODAY_ABSENCE="== 今日請假役男 =="
 KEYWORD = {
-    "== 請假 ==",
-    "== 取消請假 ==",
-    "== 查看夜假 ==",
-    "== 查看請假紀錄 ==",
-    "== 今日請假役男 =="
+    COMMAND_REQUEST_ABSENCE,
+    COMMAND_CANCEL_ABSENCE,
+    COMMAND_CHECK_NIGHT_TIMEOFF,
+    COMMAND_CHECK_ABSENCE_RECORD,
+    COMMAND_CHECK_TODAY_ABSENCE
 }
 
 def format_datetime(month, day):
@@ -151,15 +156,15 @@ class Normal(State):
         }
     
     def next(self, user_input, user_info):
-        if user_input == "== 請假 ==":
+        if user_input == COMMAND_REQUEST_ABSENCE:
             return Absence
-        elif user_input == "== 取消請假 ==":
+        elif user_input == COMMAND_CANCEL_ABSENCE:
             return CancelTimeoff
-        elif user_input == "== 查看夜假 ==":
+        elif user_input == COMMAND_CHECK_NIGHT_TIMEOFF:
             return CheckNightTimeoff
-        elif user_input == "== 查看請假紀錄 ==":
+        elif user_input == COMMAND_CHECK_ABSENCE_RECORD:
             return CheckAbsenceRecord
-        elif user_input == "== 今日請假役男 ==":
+        elif user_input == COMMAND_CHECK_TODAY_ABSENCE:
             return Administration
         else:
             return OutOfScope
@@ -202,8 +207,6 @@ class Absence(State):
         if user_input == "夜假" or user_input == "補休" or user_input == "公差":
             user_info["absence_type"] = user_input
             return AbsenceDate
-        elif user_input == "== 查看夜假 ==":
-            return CheckNightTimeoff
         else:
             return OutOfScope
         
