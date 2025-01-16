@@ -33,7 +33,6 @@ def format_datetime(month, day):
     return absence_day
 
 def valid_date(absence_date, absence_type):
-    print(absence_date, absence_type)
     today = datetime.now(taipei_timezone)
     over_8_pm = today.hour > 20
     today = today.replace(hour=0, minute=0, second=0, microsecond=0)

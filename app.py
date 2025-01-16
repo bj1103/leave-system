@@ -21,14 +21,20 @@ import pickle
 import os
 from state import *
 
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+
 USERS_DATA_FILE="users_data.pkl"
 
 app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
+db = mongo_client['absence-record']
+users_col = db['user']
 
 users = dict()
-users_data = dict()
+# users_data = dict()
 
 KEYWORD = {
     "== 請假 ==",
@@ -38,15 +44,15 @@ KEYWORD = {
     "== 今日請假役男 =="
 }
 
-if os.path.isfile(USERS_DATA_FILE):
-    with open(USERS_DATA_FILE, "rb") as f:
-        users_data = pickle.load(f)
+# if os.path.isfile(USERS_DATA_FILE):
+#     with open(USERS_DATA_FILE, "rb") as f:
+#         users_data = pickle.load(f)
 
-for k, v in users_data.items():
-    users[k] = {
-        "state": Normal(),
-        "user_info": v
-    }
+# for k, v in users_data.items():
+#     users[k] = {
+#         "state": Normal(),
+#         "user_info": v
+#     }
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -69,7 +75,7 @@ def callback():
 
 @line_handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    print(event)
+    # print(event)
     with ApiClient(configuration) as api_client:
         if event.source.type == "user":
             user_id = event.source.user_id
@@ -77,10 +83,21 @@ def handle_message(event):
             reply = event.message.text.strip()
             messages = []
             if users.get(user_id) == None:
-                users[user_id] = {
-                    "state": DataCollect(),
-                    "user_info": {},
-                }
+                user_info_from_db = users_col.find_one({"_id" : user_id})
+                if user_info_from_db == None:
+                    users[user_id] = {
+                        "state": DataCollect(),
+                        "user_info": {},
+                    }
+                else:
+                    users[user_id] = {
+                        "state": Normal(),
+                        "user_info": {
+                            "name": user_info_from_db["name"],
+                            "session": user_info_from_db["session"],
+                            "unit": user_info_from_db["unit"]
+                        },
+                    }
             elif reply in KEYWORD:
                 users[user_id]["state"] = Normal()
 
@@ -92,9 +109,15 @@ def handle_message(event):
             messages = users[user_id]["state"].generate_message(users[user_id]["user_info"])
             
             if isinstance(users[user_id]["state"], DataFinish):
-                users_data[user_id] = users[user_id]['user_info']
-                with open(USERS_DATA_FILE, "wb") as f:
-                    pickle.dump(users_data, f)
+                # users_data[user_id] = users[user_id]['user_info']
+                users_col.insert_one({
+                    "_id": user_id,
+                    "name": users[user_id]['user_info']["name"],
+                    "session": users[user_id]['user_info']["session"],
+                    "unit": users[user_id]['user_info']["unit"],
+                })
+                # with open(USERS_DATA_FILE, "wb") as f:
+                #     pickle.dump(users_data, f)
 
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
