@@ -25,11 +25,11 @@ service_account_info['private_key'] = service_account_info['private_key'].replac
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
-COMMAND_REQUEST_ABSENCE="== 請假 =="
-COMMAND_CANCEL_ABSENCE="== 取消請假 =="
-COMMAND_CHECK_NIGHT_TIMEOFF="== 查看夜假 =="
-COMMAND_CHECK_ABSENCE_RECORD="== 查看請假紀錄 =="
-COMMAND_CHECK_TODAY_ABSENCE="== 今日請假役男 =="
+COMMAND_REQUEST_ABSENCE = "== 請假 =="
+COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
+COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看夜假 =="
+COMMAND_CHECK_ABSENCE_RECORD = "== 查看請假紀錄 =="
+COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE,
     COMMAND_CANCEL_ABSENCE,

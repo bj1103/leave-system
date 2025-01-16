@@ -30,6 +30,7 @@ app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
+group_chat_id = os.getenv("GROUP_CHAT_ID")
 db = mongo_client['absence-record']
 users_col = db['user']
 
@@ -128,7 +129,7 @@ def handle_message(event):
             if messages["group"]:
                 r = line_bot_api.push_message_with_http_info(
                     PushMessageRequest(
-                        to="Cbfeffdfa0e89cf85eafc61560e923fef",
+                        to=group_chat_id,
                         messages=messages["group"]
                     )
                 )
