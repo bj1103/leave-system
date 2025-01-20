@@ -8,6 +8,7 @@ from linebot.v3.messaging import (
     QuickReplyItem,
     MessageAction,
     FlexMessage,
+    ShowLoadingAnimationRequest
 )
 from template import night_timeoff_template, absence_record_template, today_absence_template
 from datetime import datetime, timedelta
@@ -207,6 +208,8 @@ class Absence(State):
         if user_input == "夜假" or user_input == "補休" or user_input == "公差":
             user_info["absence_type"] = user_input
             return AbsenceDate
+        elif user_input == "返回":
+            return Normal
         else:
             return OutOfScope
         

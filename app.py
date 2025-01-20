@@ -15,11 +15,13 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import (
     MessageEvent,
-    TextMessageContent
+    TextMessageContent,
+    UnsendEvent
 )
 import pickle
 import os
 from state import *
+import re
 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -68,10 +70,9 @@ def callback():
 
 @line_handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    # print(event)
     with ApiClient(configuration) as api_client:
+        user_id = event.source.user_id
         if event.source.type == "user":
-            user_id = event.source.user_id
             line_bot_api = MessagingApi(api_client)
             reply = event.message.text.strip()
             messages = []
@@ -134,8 +135,61 @@ def handle_message(event):
                     )
                 )
                 print("Group response status code: ", r.status_code)
-        else:
-            print(event)
+        elif event.source.group_id == group_chat_id:
+                reply = event.message.text.strip()
+                splitted_reply = re.split(' |，|[|]|［|］', reply)
+                absence_date = splitted_reply[0]
+                absence_month, absence_day = absence_date.split("/")
+                session = re.findall(r'\d+', splitted_reply[1])[0]
+                name = splitted_reply[2]
+                unit = splitted_reply[3]
+                absence_type = splitted_reply[4]
+                user_info =  {
+                    "name": name,
+                    "session": session,
+                    "absence_type": absence_type,
+                    "absence_date": format_datetime(int(absence_month), int(absence_day))
+                }
+                if absence_type == "夜假":
+                    state = NightTimeoff()
+                elif absence_type == "隔天補休":
+                    state = OtherTimeoff()
+                    user_info["absence_date"] += timedelta(days=1)
+                    user_info["absence_type"] = "補休"
+                else:
+                    state = OtherTimeoff()
+                state.generate_message(user_info)
+
+                user_info_from_db = users_col.find_one({"_id" : user_id})
+                if user_info_from_db == None:
+                    users_col.insert_one({
+                        "_id": user_id,
+                        "name": name,
+                        "session": session,
+                        "unit": unit,
+                    })
+
+
+@line_handler.add(UnsendEvent)
+def handle_unseen(event):
+    if event.source.type == "group" and event.source.group_id == group_chat_id:
+        user_id = event.source.user_id
+        user_info_from_db = users_col.find_one({"_id" : user_id})
+        user_info = {
+            "name": user_info_from_db["name"],
+            "session": user_info_from_db["session"],
+            "unit": user_info_from_db["unit"] 
+        }
+        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
+        worksheet = absence_record_sheet.worksheet(f"{user_info['session']}T{user_info['name']}")
+        df = pd.DataFrame(worksheet.get_all_records())
+        absence_date, absence_type = df.iloc[[-1]].values[0]
+        year, month, day = [int(x) for x in absence_date.split("/")]
+        user_info['absence_date'] = datetime(year=year, month=month, day=day)
+        user_info['absence_type'] = absence_type
+        state = FinishCancelTimeoff()
+        state.generate_message(user_info)
+
 
 if __name__ == "__main__":
-    app.run()
+    app.run(port=5002)
