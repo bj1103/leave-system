@@ -512,7 +512,7 @@ class CheckAbsenceRecord(State):
             df = pd.DataFrame(worksheet.get_all_records())
 
             flex_message = copy.deepcopy(absence_record_template)
-            for i, row in df.iterrows():
+            for i, row in df.tail(5).iterrows():
                 flex_message.body.contents[1].contents.append(
                     self.generate_absence_record_box(row["日期"], row["假別"]))
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
