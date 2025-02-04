@@ -474,7 +474,7 @@ class CheckNightTimeoff(NightTimeoff):
             for i, nigth_timeoff in enumerate(available_night_timeoff):
                 flex_message.body.contents[1].contents.append(
                     self.generate_night_timeoff_box(i + 1, nigth_timeoff))
-            flex_message.footer.contents[0].uri += str(worksheet.id)
+            flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
         except KeyError:
             message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
@@ -516,7 +516,7 @@ class CheckAbsenceRecord(State):
             for i, row in df.tail(5).iterrows():
                 flex_message.body.contents[1].contents.append(
                     self.generate_absence_record_box(row["日期"], row["假別"]))
-            flex_message.footer.contents[0].uri += str(worksheet.id)
+            flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
         except KeyError:
             message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
