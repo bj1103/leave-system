@@ -91,12 +91,12 @@ def handle_message(event):
             elif reply in KEYWORD:
                 users[user_id]["state"] = Normal()
 
-            # print("before state: ", users[user_id]["state"])
+            print("before state: ", users[user_id]["state"])
             users[user_id]["state"] = users[user_id]["state"].next(
                 reply, users[user_id]['user_info'])()
             messages = users[user_id]["state"].generate_message(
                 users[user_id]["user_info"])
-
+            print(messages)
             if isinstance(users[user_id]["state"], DataFinish):
                 # users_data[user_id] = users[user_id]['user_info']
                 users_col.insert_one({
@@ -115,7 +115,7 @@ def handle_message(event):
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
                     reply, users[user_id]['user_info'])()
-            # print("After state: ", users[user_id]["state"])
+            print("After state: ", users[user_id]["state"])
             if messages["user"]:
                 r = line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(reply_token=event.reply_token,

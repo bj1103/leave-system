@@ -27,10 +27,13 @@ COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
 COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看夜假 =="
 COMMAND_CHECK_ABSENCE_RECORD = "== 查看請假紀錄 =="
 COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
+COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
+COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
+
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE, COMMAND_CANCEL_ABSENCE,
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
-    COMMAND_CHECK_TODAY_ABSENCE
+    COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF, COMMAND_REQUEST_TOMORROW_TIMEOFF
 }
 
 
@@ -44,13 +47,18 @@ def format_datetime(month, day):
 
 def valid_date(absence_date, absence_type):
     today = datetime.now(taipei_timezone)
-    over_8_pm = today.hour > 20
+    overtime = False
+    if today.weekday() == 6:
+        overtime = today.hour > 22
+    else:
+        overtime = today.hour > 20
+
     today = today.replace(hour=0, minute=0, second=0, microsecond=0)
     if absence_type == "補休" and absence_date > today + timedelta(
-            days=1) * (over_8_pm):
+            days=1) * (overtime):
         return True
     elif absence_type == "夜假" and absence_date >= today + timedelta(
-            days=1) * (over_8_pm):
+            days=1) * (overtime):
         return True
     elif absence_type == "公差" and absence_date >= today:
         return True
@@ -166,6 +174,30 @@ class Normal(State):
             return CheckAbsenceRecord
         elif user_input == COMMAND_CHECK_TODAY_ABSENCE:
             return Administration
+        elif user_input == COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF:
+            today = datetime.now(taipei_timezone).replace(hour=0,
+                                                              minute=0,
+                                                              second=0,
+                                                              microsecond=0)
+            user_info["absence_date"] = today
+            user_info["absence_type"] = "夜假"
+            if valid_date(user_info["absence_date"],
+                              user_info["absence_type"]):
+                return NightTimeoff
+            else:
+                return AbsenceLate
+        elif user_input == COMMAND_REQUEST_TOMORROW_TIMEOFF:
+            today = datetime.now(taipei_timezone).replace(hour=0,
+                                                              minute=0,
+                                                              second=0,
+                                                              microsecond=0)
+            user_info["absence_date"] = today + timedelta(days=1)
+            user_info["absence_type"] = "補休"
+            if valid_date(user_info["absence_date"],
+                              user_info["absence_type"]):
+                return OtherTimeoff
+            else:
+                return AbsenceLate
         else:
             return OutOfScope
 
