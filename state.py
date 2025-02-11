@@ -184,7 +184,7 @@ class Normal(State):
                                                           minute=0,
                                                           second=0,
                                                           microsecond=0)
-            user_info["absence_date"] = today + timedelta(days=1)
+            user_info["absence_date"] = today
             user_info["absence_type"] = "隔天補休"
             if valid_date(user_info["absence_date"],
                           user_info["absence_type"]):
