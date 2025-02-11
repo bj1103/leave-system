@@ -1,10 +1,5 @@
-from linebot.v3.messaging import (
-    TextMessage,
-    FlexBox,
-    FlexText,
-)
-from linebot.v3.messaging import (QuickReply, QuickReplyItem, MessageAction,
-                                  FlexMessage)
+from linebot.v3.messaging import (TextMessage, FlexBox, FlexText, QuickReply,
+                                  QuickReplyItem, MessageAction, FlexMessage)
 from template import night_timeoff_template, absence_record_template, today_absence_template
 from datetime import datetime, timedelta
 import pytz
@@ -22,10 +17,10 @@ service_account_info['private_key'] = service_account_info[
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
-COMMAND_REQUEST_ABSENCE = "== 請假 =="
+COMMAND_REQUEST_ABSENCE = "== 其他請假 =="
 COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
-COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看夜假 =="
-COMMAND_CHECK_ABSENCE_RECORD = "== 查看請假紀錄 =="
+COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看剩餘夜假 =="
+COMMAND_CHECK_ABSENCE_RECORD = "== 請假紀錄 =="
 COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
 COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
 COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
@@ -33,7 +28,8 @@ COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE, COMMAND_CANCEL_ABSENCE,
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
-    COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF, COMMAND_REQUEST_TOMORROW_TIMEOFF
+    COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF,
+    COMMAND_REQUEST_TOMORROW_TIMEOFF
 }
 
 
@@ -54,11 +50,8 @@ def valid_date(absence_date, absence_type):
         overtime = today.hour > 20
 
     today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-    if absence_type == "補休" and absence_date > today + timedelta(
-            days=1) * (overtime):
-        return True
-    elif absence_type == "夜假" and absence_date >= today + timedelta(
-            days=1) * (overtime):
+    if (absence_type == "夜假" or absence_type == "隔天補休"
+        ) and absence_date >= today + timedelta(days=1) * (overtime):
         return True
     elif absence_type == "公差" and absence_date >= today:
         return True
@@ -176,25 +169,25 @@ class Normal(State):
             return Administration
         elif user_input == COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF:
             today = datetime.now(taipei_timezone).replace(hour=0,
-                                                              minute=0,
-                                                              second=0,
-                                                              microsecond=0)
+                                                          minute=0,
+                                                          second=0,
+                                                          microsecond=0)
             user_info["absence_date"] = today
             user_info["absence_type"] = "夜假"
             if valid_date(user_info["absence_date"],
-                              user_info["absence_type"]):
+                          user_info["absence_type"]):
                 return NightTimeoff
             else:
                 return AbsenceLate
         elif user_input == COMMAND_REQUEST_TOMORROW_TIMEOFF:
             today = datetime.now(taipei_timezone).replace(hour=0,
-                                                              minute=0,
-                                                              second=0,
-                                                              microsecond=0)
+                                                          minute=0,
+                                                          second=0,
+                                                          microsecond=0)
             user_info["absence_date"] = today + timedelta(days=1)
-            user_info["absence_type"] = "補休"
+            user_info["absence_type"] = "隔天補休"
             if valid_date(user_info["absence_date"],
-                              user_info["absence_type"]):
+                          user_info["absence_type"]):
                 return OtherTimeoff
             else:
                 return AbsenceLate
@@ -223,7 +216,7 @@ class Absence(State):
 
     def generate_message(self, user_info):
         option_items = []
-        for option in ['夜假', '補休', '公差', '返回']:
+        for option in ['夜假', '隔天補休', '公差', '返回']:
             option_items.append(
                 QuickReplyItem(
                     action=MessageAction(label=option, text=f"{option}")))
@@ -234,7 +227,7 @@ class Absence(State):
         return {"user": message, "group": None}
 
     def next(self, user_input, user_info):
-        if user_input == "夜假" or user_input == "補休" or user_input == "公差":
+        if user_input == "夜假" or user_input == "隔天補休" or user_input == "公差":
             user_info["absence_type"] = user_input
             return AbsenceDate
         elif user_input == "返回":
@@ -250,13 +243,8 @@ class AbsenceDate(State):
 
     def generate_message(self, user_info):
         option_items = []
-        if user_info['absence_type'] == '補休':
-            options = ['明天', '取消']
-            text = "請按'明天'或輸入請假日期 (Ex. 1/3)，若要取消請按'取消'"
-        else:
-            options = ['今天', '取消']
-            text = "請按'今天'或輸入請假日期 (Ex. 1/3)，若要取消請按'取消'"
-
+        options = ['今天', '取消']
+        text = "請按'今天'或輸入請假日期 (Ex. 1/3)，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
         for option in options:
             option_items.append(
                 QuickReplyItem(
@@ -304,12 +292,8 @@ class AbsenceDateFormatError(AbsenceDate):
 
     def generate_message(self, user_info):
         option_items = []
-        if user_info['absence_type'] == '補休':
-            options = ['明天', '取消']
-            text = "請重新輸入請假日期 (Ex. 1/3)，或按'明天'，若要取消請按'取消'"
-        else:
-            options = ['今天', '明天', '取消']
-            text = "請重新輸入請假日期 (Ex. 1/3)，或按'今天'、'明天'，若要取消請按'取消'"
+        options = ['今天', '取消']
+        text = "請重新輸入請假日期 (Ex. 1/3)，或按'今天'，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
 
         for option in options:
             option_items.append(
@@ -549,6 +533,7 @@ class CheckAbsenceRecord(State):
                 flex_message.body.contents[1].contents.append(
                     self.generate_absence_record_box(row["日期"], row["假別"]))
             flex_message.footer.contents[0].action.uri += str(worksheet.id)
+            print(flex_message.footer.contents[0].action.uri)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
         except KeyError:
             message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
