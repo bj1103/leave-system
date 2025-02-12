@@ -91,12 +91,15 @@ def handle_message(event):
             elif reply in KEYWORD:
                 users[user_id]["state"] = Normal()
 
-            print("before state: ", users[user_id]["state"])
+            # print("before state: ", users[user_id]["state"])
             users[user_id]["state"] = users[user_id]["state"].next(
                 reply, users[user_id]['user_info'])()
-            messages = users[user_id]["state"].generate_message(
-                users[user_id]["user_info"])
-            print(messages)
+            try:
+                messages = users[user_id]["state"].generate_message(
+                    users[user_id]["user_info"])
+            except:
+                messages = {"user": "系統無法完成此操作。", "group": None}
+            # print(messages)
             if isinstance(users[user_id]["state"], DataFinish):
                 # users_data[user_id] = users[user_id]['user_info']
                 users_col.insert_one({
@@ -115,7 +118,7 @@ def handle_message(event):
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
                     reply, users[user_id]['user_info'])()
-            print("After state: ", users[user_id]["state"])
+            # print("After state: ", users[user_id]["state"])
             if messages["user"]:
                 r = line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(reply_token=event.reply_token,
@@ -175,11 +178,16 @@ def handle_unseen(event):
             "session": user_info_from_db["session"],
             "unit": user_info_from_db["unit"]
         }
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
-        df = pd.DataFrame(worksheet.get_all_records())
-        absence_date, absence_type = df.iloc[[-1]].values[0]
+        absence_date = ""
+        absence_type = ""
+        for record in worksheet.get_all_records()[::-1]:
+            if len(record["請假紀錄"]):
+                absence_date = record["日期"]
+                absence_type = record["請假紀錄"]
+                break
         year, month, day = [int(x) for x in absence_date.split("/")]
         user_info['absence_date'] = datetime(year=year, month=month, day=day)
         user_info['absence_type'] = absence_type
