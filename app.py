@@ -99,6 +99,7 @@ def handle_message(event):
                     users[user_id]["user_info"])
             except:
                 messages = {"user": "系統無法完成此操作。", "group": None}
+                users[user_id]["state"] = Normal()
             # print(messages)
             if isinstance(users[user_id]["state"], DataFinish):
                 # users_data[user_id] = users[user_id]['user_info']
@@ -178,7 +179,7 @@ def handle_unseen(event):
             "session": user_info_from_db["session"],
             "unit": user_info_from_db["unit"]
         }
-        absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
         absence_date = ""

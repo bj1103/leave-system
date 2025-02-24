@@ -242,8 +242,8 @@ class AbsenceDate(State):
 
     def generate_message(self, user_info):
         option_items = []
-        options = ['今天', '取消']
-        text = "請按'今天'或輸入請假日期 (Ex. 1/3)，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
+        options = ['取消']
+        text = "請輸入請假日期 (Ex. 1/3)，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
         for option in options:
             option_items.append(
                 QuickReplyItem(
@@ -275,9 +275,12 @@ class AbsenceDate(State):
             month = month.lstrip("0")
             day = day.lstrip("0")
             if month.isdigit() and day.isdigit():
-                user_info["absence_date"] = format_datetime(
-                    int(month), int(day))
-                return AbsenceConfirm
+                try:
+                    user_info["absence_date"] = format_datetime(
+                        int(month), int(day))
+                    return AbsenceConfirm
+                except ValueError:
+                    return AbsenceDateFormatError
             else:
                 return AbsenceDateFormatError
         else:
@@ -291,8 +294,8 @@ class AbsenceDateFormatError(AbsenceDate):
 
     def generate_message(self, user_info):
         option_items = []
-        options = ['今天', '取消']
-        text = "請重新輸入請假日期 (Ex. 1/3)，或按'今天'，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
+        options = ['取消']
+        text = "請重新輸入請假日期 (Ex. 1/3)，若要取消請按'取消'。請注意，若您是要請'隔天補休'，請輸入您沒有要回來住替中的日期 (Ex. 如果您在2/5補休，您是2/4晚上不用回來住替中，因此請輸入2/4)"
 
         for option in options:
             option_items.append(
