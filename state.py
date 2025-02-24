@@ -9,7 +9,7 @@ import copy
 import json
 import os
 
-NIGHT_TIMEOFF_SHEET_KEY = "10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI"
+ABSENCE_SHEET_KEY = "10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI"
 service_account_info = json.loads(os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON'))
 service_account_info['private_key'] = service_account_info[
     'private_key'].replace("\\n", "\n")
@@ -378,7 +378,7 @@ class OtherTimeoff(State):
 
     def generate_message(self, user_info):
         try:
-            absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+            absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
             worksheet = absence_record_sheet.worksheet(
                 f"{user_info['session']}T{user_info['name']}")
             self.update_absence_record(worksheet, user_info)
@@ -429,7 +429,7 @@ class NightTimeoff(OtherTimeoff):
 
     def generate_message(self, user_info):
         try:
-            night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+            night_timeoff_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
             worksheet = night_timeoff_sheet.worksheet(
                 f"{user_info['session']}T{user_info['name']}")
             available_night_timeoff = self.get_night_timeoff_amount(worksheet)
@@ -481,7 +481,7 @@ class CheckNightTimeoff(NightTimeoff):
 
     def generate_message(self, user_info):
         try:
-            night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+            night_timeoff_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
             worksheet = night_timeoff_sheet.worksheet(
                 f"{user_info['session']}T{user_info['name']}")
             available_night_timeoff = self.get_night_timeoff_amount(worksheet)
@@ -524,7 +524,7 @@ class CheckAbsenceRecord(State):
 
     def generate_message(self, user_info):
         try:
-            absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+            absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
             worksheet = absence_record_sheet.worksheet(
                 f"{user_info['session']}T{user_info['name']}")
 
@@ -582,7 +582,7 @@ class Administration(State):
                        ])
 
     def generate_message(self, user_info):
-        absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
         flex_message = copy.deepcopy(today_absence_template)
         today = datetime.now(taipei_timezone).strftime('%Y/%-m/%-d')
         count = 0
@@ -626,7 +626,7 @@ class CancelTimeoff(State):
         return out
 
     def generate_message(self, user_info):
-        absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
         timeoff = self.get_future_timeoff(worksheet) + ["返回"]
@@ -665,7 +665,7 @@ class FinishCancelTimeoff(State):
 
     def generate_message(self, user_info):
         fail = False
-        absence_record_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
         df = pd.DataFrame(worksheet.get_all_records())
