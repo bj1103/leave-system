@@ -94,12 +94,12 @@ def handle_message(event):
             # print("before state: ", users[user_id]["state"])
             users[user_id]["state"] = users[user_id]["state"].next(
                 reply, users[user_id]['user_info'])()
-            try:
-                messages = users[user_id]["state"].generate_message(
-                    users[user_id]["user_info"])
-            except:
-                messages = {"user": "系統無法完成此操作。", "group": None}
-                users[user_id]["state"] = Normal()
+            # try:
+            messages = users[user_id]["state"].generate_message(
+                users[user_id]["user_info"])
+            # except:
+            #     messages = {"user": "系統無法完成此操作。", "group": None}
+            #     users[user_id]["state"] = Normal()
             # print(messages)
             if isinstance(users[user_id]["state"], DataFinish):
                 # users_data[user_id] = users[user_id]['user_info']

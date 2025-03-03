@@ -31,6 +31,8 @@ KEYWORD = {
     COMMAND_REQUEST_TOMORROW_TIMEOFF
 }
 
+night_timeoff_headers = ["核發原因", "核發日期", "有效期限", "夜假日期"]
+absence_headers = ["請假紀錄", "日期"]
 
 def format_datetime(month, day):
     today = datetime.now(taipei_timezone)
@@ -364,7 +366,7 @@ class OtherTimeoff(State):
 
     def update_absence_record(self, worksheet, user_info):
         idx = 0
-        for record in worksheet.get_all_records():
+        for record in worksheet.get_all_records(expected_headers=absence_headers):
             if len(record["請假紀錄"]) != 0:
                 idx += 1
             else:
@@ -410,25 +412,51 @@ class NightTimeoff(OtherTimeoff):
 
     def get_night_timeoff_amount(self, worksheet):
         available_night_timeoff = []
-        for row in worksheet.get_all_records():
+        for row in worksheet.get_all_records(expected_headers=night_timeoff_headers):
             if len(row["夜假日期"]) == 0 and len(row["核發日期"]) != 0:
                 available_night_timeoff.append(row["有效期限"])
         return available_night_timeoff
 
     def update_nigth_timeoff_sheet(self, worksheet, user_info):
-        target_row_id = -1
-        deadline = datetime.max
-        for row_id, row in enumerate(worksheet.get_all_records()):
-            if len(row["夜假日期"]) == 0 and len(row["核發日期"]) != 0:
-                year, month, day = [int(x) for x in row["有效期限"].split("/")]
-                row_deadline = datetime(year=year, month=month, day=day)
-                if row_deadline < deadline:
-                    deadline = row_deadline
-                    target_row_id = row_id
-        worksheet.update_cell(
-            row=target_row_id + 2,
-            col=5,
-            value=user_info["absence_date"].strftime('%Y/%-m/%-d'))
+        length = 0
+        for record in worksheet.get_all_records(expected_headers=night_timeoff_headers):
+            if len(record["夜假日期"]) != 0:
+                length += 1
+            else:
+                break
+
+        data = worksheet.get(f"D2:D{length+1}")
+        data.append([
+            user_info['absence_date'].strftime('%Y/%-m/%-d')
+        ])
+        sorted_data = []
+        indexes = []
+        for i, date in enumerate(data):
+            if date[0] != "已過期":
+                sorted_data.append(date[0])
+                indexes.append(i)
+
+        sorted_data.sort(key=lambda row: datetime.strptime(row, '%Y/%m/%d'))
+        
+        for i, date in enumerate(sorted_data):
+            data[indexes[i]] = [date]
+        worksheet.update(f"D2:D{length+2}", data)
+
+
+
+        # target_row_id = -1
+        # deadline = datetime.max
+        # for row_id, row in enumerate(worksheet.get_all_records(expected_headers=night_timeoff_headers)):
+        #     if len(row["夜假日期"]) == 0 and len(row["核發日期"]) != 0:
+        #         year, month, day = [int(x) for x in row["有效期限"].split("/")]
+        #         row_deadline = datetime(year=year, month=month, day=day)
+        #         if row_deadline < deadline:
+        #             deadline = row_deadline
+        #             target_row_id = row_id
+        # worksheet.update_cell(
+        #     row=target_row_id + 2,
+        #     col=4,
+        #     value=user_info["absence_date"].strftime('%Y/%-m/%-d'))
 
     def generate_message(self, user_info):
         try:
@@ -483,21 +511,21 @@ class CheckNightTimeoff(NightTimeoff):
                        ])
 
     def generate_message(self, user_info):
-        try:
-            night_timeoff_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
-            worksheet = night_timeoff_sheet.worksheet(
-                f"{user_info['session']}T{user_info['name']}")
-            available_night_timeoff = self.get_night_timeoff_amount(worksheet)
-            flex_message = copy.deepcopy(night_timeoff_template)
-            flex_message.body.contents[0].text += str(
-                len(available_night_timeoff))
-            for i, nigth_timeoff in enumerate(available_night_timeoff):
-                flex_message.body.contents[1].contents.append(
-                    self.generate_night_timeoff_box(i + 1, nigth_timeoff))
-            flex_message.footer.contents[0].action.uri += str(worksheet.id)
-            message = [FlexMessage(alt_text="夜假", contents=flex_message)]
-        except KeyError:
-            message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
+        # try:
+        night_timeoff_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
+        worksheet = night_timeoff_sheet.worksheet(
+            f"{user_info['session']}T{user_info['name']}")
+        available_night_timeoff = self.get_night_timeoff_amount(worksheet)
+        flex_message = copy.deepcopy(night_timeoff_template)
+        flex_message.body.contents[0].text += str(
+            len(available_night_timeoff))
+        for i, nigth_timeoff in enumerate(available_night_timeoff):
+            flex_message.body.contents[1].contents.append(
+                self.generate_night_timeoff_box(i + 1, nigth_timeoff))
+        flex_message.footer.contents[0].action.uri += str(worksheet.id)
+        message = [FlexMessage(alt_text="夜假", contents=flex_message)]
+        # except KeyError:
+        #     message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
         return {"user": message, "group": None}
 
     def next(self, user_input, user_info):
@@ -533,7 +561,7 @@ class CheckAbsenceRecord(State):
 
             flex_message = copy.deepcopy(absence_record_template)
             count = 0
-            records = worksheet.get_all_records()
+            records = worksheet.get_all_records(expected_headers=absence_headers)
             for record in records[::-1]:
                 if len(record["請假紀錄"]) == 0:
                     continue
@@ -591,9 +619,9 @@ class Administration(State):
         count = 0
         for sheet in absence_record_sheet.worksheets():
             title = sheet.title
-            if title == "模板":
+            if title == "夜假總表":
                 continue
-            records = sheet.get_all_records()
+            records = sheet.get_all_records(expected_headers=absence_headers)
 
             for record in records:
                 if record["日期"] == today:
@@ -619,7 +647,7 @@ class CancelTimeoff(State):
         out = []
         today = datetime.now(taipei_timezone)
         today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        for row in worksheet.get_all_records():
+        for row in worksheet.get_all_records(expected_headers=absence_headers):
             if len(row["日期"]):
                 year, month, day = [int(x) for x in row["日期"].split("/")]
                 row_date = taipei_timezone.localize(
@@ -671,7 +699,7 @@ class FinishCancelTimeoff(State):
         absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
-        df = pd.DataFrame(worksheet.get_all_records())
+        df = pd.DataFrame(worksheet.get_all_records(expected_headers=absence_headers))
         date = user_info['absence_date'].strftime('%Y/%-m/%-d')
         idxs = df[(df['日期'] == date)
                   & (df['請假紀錄'] == user_info['absence_type'])].index
@@ -691,18 +719,37 @@ class FinishCancelTimeoff(State):
             fail = True
 
         if user_info["absence_type"] == "夜假":
-            df = pd.DataFrame(worksheet.get_all_records())
-            idxs = df[(df['夜假日期'] == date)].index
-            if len(idxs):
-                idx = int(idxs[-1]) + 2
-                worksheet.update_cell(
-                    row=idx,
-                    col=5,
-                    value=
-                    f'=IF(D{idx}="", "", IF(D{idx}<TODAY(), "expired", ""))'
-                )
-            else:
-                fail = True
+            length = 0
+            for record in worksheet.get_all_records(expected_headers=night_timeoff_headers):
+                if len(record["夜假日期"]) != 0:
+                    length += 1
+                else:
+                    break
+
+            data = worksheet.get(f"D2:D{length+1}")
+
+            previous = -1
+            for i in range(len(data)):
+                if previous == -1 and data[i][0] == date:
+                    data[i] = [""]
+                    previous = i
+                elif previous != -1 and data[i][0] != "已過期":
+                    data[previous] = data[i]
+                    data[i] = [""]
+                    previous = i
+            worksheet.update(f"D2:D{length+1}", data)
+            
+            # df = pd.DataFrame(worksheet.get_all_records(expected_headers=night_timeoff_headers))
+            # idxs = df[(df['夜假日期'] == date)].index
+            # if len(idxs):
+            #     idx = int(idxs[-1]) + 2
+            #     worksheet.update_cell(
+            #         row=idx,
+            #         col=4,
+            #         value=""
+            #     )
+            # else:
+            #     fail = True
 
         if fail == False:
             user_message = [TextMessage(text=f"已幫您取消申請，請至群組確認取消資訊", )]
