@@ -700,21 +700,27 @@ class FinishCancelTimeoff(State):
         worksheet = absence_record_sheet.worksheet(
             f"{user_info['session']}T{user_info['name']}")
         df = pd.DataFrame(worksheet.get_all_records(expected_headers=absence_headers))
+        length = 0
+        for _, row in df.iterrows():
+            if len(row["日期"]) != 0:
+                length += 1
+            else:
+                break
+        
         date = user_info['absence_date'].strftime('%Y/%-m/%-d')
         idxs = df[(df['日期'] == date)
                   & (df['請假紀錄'] == user_info['absence_type'])].index
         if len(idxs):
             idx = int(idxs[-1])
-            l = len(df)
-            if idx == l - 1:
+            if idx == length - 1:
                 cells = worksheet.range(f"G{idx + 2}:H{idx + 2}")
                 cells[0].value = ""
                 cells[1].value = ""
                 worksheet.update_cells(cells)
             else:
-                data = worksheet.get(f"G{idx+3}:H{l+1}")
-                worksheet.update(f"G{idx+2}:H{l}", data)
-                worksheet.batch_clear([f"G{l+1}:H{l+1}"])
+                data = worksheet.get(f"G{idx+3}:H{length+1}")
+                worksheet.update(f"G{idx+2}:H{length}", data)
+                worksheet.batch_clear([f"G{length+1}:H{length+1}"])
         else:
             fail = True
 
