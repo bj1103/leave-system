@@ -96,7 +96,7 @@ def handle_message(event):
                 reply, users[user_id]['user_info'])()
             try:
                 messages = users[user_id]["state"].generate_message(
-                 users[user_id]["user_info"])
+                    users[user_id]["user_info"])
             except:
                 messages = {"user": "系統無法完成此操作。", "group": None}
                 users[user_id]["state"] = Normal()
@@ -144,6 +144,8 @@ def handle_message(event):
                 name,
                 "session":
                 session,
+                "unit":
+                unit,
                 "absence_type":
                 absence_type,
                 "absence_date":
