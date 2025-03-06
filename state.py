@@ -366,21 +366,23 @@ class OtherTimeoff(State):
         self.block = False
 
     def update_absence_record(self, worksheet, user_info):
-        idx = 0
+        length = 0
         for record in worksheet.get_all_records(expected_headers=absence_headers):
             if len(record["請假日期"]) != 0:
-                idx += 1
+                length += 1
             else:
                 break
-
-        data = worksheet.get(f"A2:B{idx+1}")
+        if length == 0:
+            data = []
+        else:
+            data = worksheet.get(f"A2:B{length+1}")
         data.append([
             user_info['absence_date'].strftime('%Y/%-m/%-d'),
             user_info['absence_type']  
         ])
         sorted_data = sorted(
             data, key=lambda row: datetime.strptime(row[0], '%Y/%m/%d'))
-        worksheet.update(f"A2:B{idx+2}", sorted_data)
+        worksheet.update(f"A2:B{length+2}", sorted_data)
 
     def generate_message(self, user_info):
         try:
@@ -425,8 +427,10 @@ class NightTimeoff(OtherTimeoff):
                 length += 1
             else:
                 break
-
-        data = worksheet.get(f"D2:D{length+1}")
+        if length == 0:
+            data = []
+        else:
+            data = worksheet.get(f"D2:D{length+1}")
         data.append([
             user_info['absence_date'].strftime('%Y/%-m/%-d')
         ])
