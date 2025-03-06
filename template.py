@@ -59,7 +59,7 @@ absence_record_template = FlexBubble(
             FlexButton(action=URIAction(
                 label="詳細資料",
                 uri=
-                "https://docs.google.com/spreadsheets/d/10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI/edit?usp=sharing#gid="
+                "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing#gid="
             ))
         ]))
 
@@ -81,6 +81,10 @@ today_absence_template = FlexBubble(
                                                       flex=3,
                                                       size="md",
                                                       weight="bold"),
+                                             FlexText(text="單位",
+                                                      flex=3,
+                                                      size="md",
+                                                      weight="bold"),
                                              FlexText(text="姓名",
                                                       flex=3,
                                                       size="md",
@@ -98,6 +102,6 @@ today_absence_template = FlexBubble(
             FlexButton(action=URIAction(
                 label="詳細資料",
                 uri=
-                "https://docs.google.com/spreadsheets/d/10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI/edit?usp=sharing"
+                "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing"
             ))
         ]))
