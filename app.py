@@ -94,13 +94,13 @@ def handle_message(event):
             # print("before state: ", users[user_id]["state"])
             users[user_id]["state"] = users[user_id]["state"].next(
                 reply, users[user_id]['user_info'])()
-            # try:
-            messages = users[user_id]["state"].generate_message(
-                users[user_id]["user_info"])
-            # except:
-            #     messages = {"user": "系統無法完成此操作。", "group": None}
-            #     users[user_id]["state"] = Normal()
-            # print(messages)
+            try:
+                messages = users[user_id]["state"].generate_message(
+                 users[user_id]["user_info"])
+            except:
+                messages = {"user": "系統無法完成此操作。", "group": None}
+                users[user_id]["state"] = Normal()
+
             if isinstance(users[user_id]["state"], DataFinish):
                 # users_data[user_id] = users[user_id]['user_info']
                 users_col.insert_one({
@@ -130,7 +130,7 @@ def handle_message(event):
                     PushMessageRequest(to=group_chat_id,
                                        messages=messages["group"]))
                 print("Group response status code: ", r.status_code)
-        elif event.source.group_id == group_chat_id:
+        elif event.source.type == "group":
             reply = event.message.text.strip()
             splitted_reply = re.split(' |，|[|]|［|］', reply)
             absence_date = splitted_reply[0]
@@ -151,10 +151,6 @@ def handle_message(event):
             }
             if absence_type == "夜假":
                 state = NightTimeoff()
-            elif absence_type == "隔天補休":
-                state = OtherTimeoff()
-                user_info["absence_date"] += timedelta(days=1)
-                user_info["absence_type"] = "補休"
             else:
                 state = OtherTimeoff()
             state.generate_message(user_info)
@@ -171,7 +167,7 @@ def handle_message(event):
 
 @line_handler.add(UnsendEvent)
 def handle_unseen(event):
-    if event.source.type == "group" and event.source.group_id == group_chat_id:
+    if event.source.type == "group":
         user_id = event.source.user_id
         user_info_from_db = users_col.find_one({"_id": user_id})
         user_info = {
@@ -179,15 +175,15 @@ def handle_unseen(event):
             "session": user_info_from_db["session"],
             "unit": user_info_from_db["unit"]
         }
-        absence_record_sheet = gc.open_by_key(ABSENCE_SHEET_KEY)
+        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
         worksheet = absence_record_sheet.worksheet(
-            f"{user_info['session']}T{user_info['name']}")
+            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
         absence_date = ""
         absence_type = ""
         for record in worksheet.get_all_records()[::-1]:
-            if len(record["請假紀錄"]):
-                absence_date = record["日期"]
-                absence_type = record["請假紀錄"]
+            if len(record["請假日期"]):
+                absence_date = record["請假日期"]
+                absence_type = record["假別"]
                 break
         year, month, day = [int(x) for x in absence_date.split("/")]
         user_info['absence_date'] = datetime(year=year, month=month, day=day)
