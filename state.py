@@ -520,21 +520,21 @@ class CheckNightTimeoff(NightTimeoff):
                        ])
 
     def generate_message(self, user_info):
-        # try:
-        night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
-        worksheet = night_timeoff_sheet.worksheet(
-            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-        available_night_timeoff = self.get_night_timeoff_amount(worksheet)
-        flex_message = copy.deepcopy(night_timeoff_template)
-        flex_message.body.contents[0].text += str(
-            len(available_night_timeoff))
-        for i, nigth_timeoff in enumerate(available_night_timeoff):
-            flex_message.body.contents[1].contents.append(
-                self.generate_night_timeoff_box(i + 1, nigth_timeoff))
-        flex_message.footer.contents[0].action.uri += str(worksheet.id)
-        message = [FlexMessage(alt_text="夜假", contents=flex_message)]
-        # except KeyError:
-        #     message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
+        try:
+            night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+            worksheet = night_timeoff_sheet.worksheet(
+                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+            available_night_timeoff = self.get_night_timeoff_amount(worksheet)
+            flex_message = copy.deepcopy(night_timeoff_template)
+            flex_message.body.contents[0].text += str(
+                len(available_night_timeoff))
+            for i, nigth_timeoff in enumerate(available_night_timeoff):
+                flex_message.body.contents[1].contents.append(
+                    self.generate_night_timeoff_box(i + 1, nigth_timeoff))
+            flex_message.footer.contents[0].action.uri += str(worksheet.id)
+            message = [FlexMessage(alt_text="夜假", contents=flex_message)]
+        except KeyError:
+            message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
         return {"user": message, "group": None}
 
     def next(self, user_input, user_info):
