@@ -391,14 +391,14 @@ class OtherTimeoff(State):
                 f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
             self.update_absence_record(worksheet, user_info)
 
-            user_message = [TextMessage(text=f"已登記您的請假申請，請至群組確認請假資訊", )]
+            user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補休假/公差證明給輔導員", )]
             group_message = [
                 TextMessage(
                     text=
                     f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} {user_info['absence_type']}",
                 )
             ]
-        except KeyError:
+        except gspread.exceptions.WorksheetNotFound:
             user_message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
             group_message = None
         return {"user": user_message, "group": group_message}
@@ -481,7 +481,7 @@ class NightTimeoff(OtherTimeoff):
                     f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
                 self.update_absence_record(worksheet, user_info)
 
-                user_message = [TextMessage(text=f"已登記您的請假申請，請至群組確認請假資訊", )]
+                user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄", )]
                 group_message = [
                     TextMessage(
                         text=
@@ -489,7 +489,7 @@ class NightTimeoff(OtherTimeoff):
                     )
                 ]
                 return {"user": user_message, "group": group_message}
-        except KeyError:
+        except gspread.exceptions.WorksheetNotFound:
             message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
             return {"user": message, "group": None}
 
@@ -533,7 +533,7 @@ class CheckNightTimeoff(NightTimeoff):
                     self.generate_night_timeoff_box(i + 1, nigth_timeoff))
             flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
-        except KeyError:
+        except gspread.exceptions.WorksheetNotFound:
             message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
         return {"user": message, "group": None}
 
@@ -584,7 +584,7 @@ class CheckAbsenceRecord(State):
                     break
             flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="請假紀錄", contents=flex_message)]
-        except KeyError:
+        except gspread.exceptions.WorksheetNotFound:
             message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
 
         return {"user": message, "group": None}
@@ -766,7 +766,7 @@ class FinishCancelTimeoff(State):
             #     fail = True
 
         if fail == False:
-            user_message = [TextMessage(text=f"已幫您取消申請，請至群組確認取消資訊", )]
+            user_message = [TextMessage(text=f"已幫您取消該假，可透過選單查看請假紀錄", )]
             group_message = [
                 TextMessage(
                     text=

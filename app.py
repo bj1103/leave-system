@@ -74,6 +74,7 @@ def handle_message(event):
             reply = event.message.text.strip()
             messages = []
             if users.get(user_id) == None:
+                app.logger.info(f"User {user_id} not found")
                 user_info_from_db = users_col.find_one({"_id": user_id})
                 if user_info_from_db == None:
                     users[user_id] = {
