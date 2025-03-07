@@ -139,6 +139,8 @@ def handle_message(event):
             name = splitted_reply[2]
             unit = splitted_reply[3]
             absence_type = splitted_reply[4]
+            if re.match(r"隔.{1}補休", absence_type):
+                absence_type = "隔天補休"
             user_info = {
                 "name":
                 name,
