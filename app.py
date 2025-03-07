@@ -66,6 +66,7 @@ def callback():
 
 @line_handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    app.logger.info(event)
     with ApiClient(configuration) as api_client:
         user_id = event.source.user_id
         if event.source.type == "user":
@@ -97,8 +98,9 @@ def handle_message(event):
             try:
                 messages = users[user_id]["state"].generate_message(
                     users[user_id]["user_info"])
-            except:
-                messages = {"user": "系統無法完成此操作。", "group": None}
+            except Exception as e:
+                app.logger.error(e)
+                messages = {"user": [TextMessage(text="系統錯誤，請稍後再試", )], "group": None}
                 users[user_id]["state"] = Normal()
 
             if isinstance(users[user_id]["state"], DataFinish):
