@@ -32,6 +32,8 @@ KEYWORD = {
     COMMAND_REQUEST_TOMORROW_TIMEOFF
 }
 
+SUCCESS = "SUCCESS"
+
 night_timeoff_headers = ["核發原因", "核發日期", "有效期限", "使用日期"]
 absence_headers = ["請假日期", "假別"]
 
@@ -367,8 +369,13 @@ class OtherTimeoff(State):
 
     def update_absence_record(self, worksheet, user_info):
         length = 0
+        absence_date = user_info['absence_date'].strftime('%Y/%-m/%-d')
+        absence_type = user_info['absence_type']
+
         for record in worksheet.get_all_records(expected_headers=absence_headers):
             if len(record["請假日期"]) != 0:
+                if absence_date == record["請假日期"]:
+                    return record["假別"]
                 length += 1
             else:
                 break
@@ -377,27 +384,31 @@ class OtherTimeoff(State):
         else:
             data = worksheet.get(f"A2:B{length+1}")
         data.append([
-            user_info['absence_date'].strftime('%Y/%-m/%-d'),
-            user_info['absence_type']  
+            absence_date,
+            absence_type
         ])
         sorted_data = sorted(
             data, key=lambda row: datetime.strptime(row[0], '%Y/%m/%d'))
         worksheet.update(f"A2:B{length+2}", sorted_data)
+        return SUCCESS
 
     def generate_message(self, user_info):
         try:
             absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
             worksheet = absence_record_sheet.worksheet(
                 f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-            self.update_absence_record(worksheet, user_info)
-
-            user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補休假/公差證明給輔導員", )]
-            group_message = [
-                TextMessage(
-                    text=
-                    f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} {user_info['absence_type']}",
-                )
-            ]
+            r = self.update_absence_record(worksheet, user_info)
+            if r == SUCCESS:
+                user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補休假/公差證明給輔導員", )]
+                group_message = [
+                    TextMessage(
+                        text=
+                        f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} {user_info['absence_type']}",
+                    )
+                ]
+            else:
+                user_message = [TextMessage(text=f"您之前已在所選日期請了{r}，若要更改假別，請先將舊的假取消", )]
+                group_message = None
         except gspread.exceptions.WorksheetNotFound:
             user_message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
             group_message = None
@@ -465,30 +476,32 @@ class NightTimeoff(OtherTimeoff):
 
     def generate_message(self, user_info):
         try:
-            night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
-            worksheet = night_timeoff_sheet.worksheet(
+            absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
+            absence_record_worksheet = absence_record_sheet.worksheet(
                 f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-            available_night_timeoff = self.get_night_timeoff_amount(worksheet)
-
-            if len(available_night_timeoff) == 0:
-                message = [TextMessage(text=f"您目前沒有可用夜假", )]
-                return {"user": message, "group": None}
-            else:
-                self.update_nigth_timeoff_sheet(worksheet, user_info)
-                
-                absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-                worksheet = absence_record_sheet.worksheet(
+            r = self.update_absence_record(absence_record_worksheet, user_info)
+            if r == SUCCESS:
+                night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+                night_timeoff_worksheet = night_timeoff_sheet.worksheet(
                     f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-                self.update_absence_record(worksheet, user_info)
+                available_night_timeoff = self.get_night_timeoff_amount(night_timeoff_worksheet)
 
-                user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄", )]
-                group_message = [
-                    TextMessage(
-                        text=
-                        f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} 夜假",
-                    )
-                ]
-                return {"user": user_message, "group": group_message}
+                if len(available_night_timeoff) == 0:
+                    user_message = [TextMessage(text=f"您目前沒有可用夜假", )]
+                    group_message = None
+                else:
+                    self.update_nigth_timeoff_sheet(night_timeoff_worksheet, user_info)
+                    user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄", )]
+                    group_message = [
+                        TextMessage(
+                            text=
+                            f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} 夜假",
+                        )
+                    ]
+            else:
+                user_message = [TextMessage(text=f"您之前已在所選日期請了{r}，若要更改假別，請先將舊的假取消", )]
+                group_message = None
+            return {"user": user_message, "group": group_message}
         except gspread.exceptions.WorksheetNotFound:
             message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
             return {"user": message, "group": None}
