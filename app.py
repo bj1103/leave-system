@@ -136,13 +136,14 @@ def handle_message(event):
         elif event.source.type == "group":
             reply = event.message.text.strip()
             splitted_reply = re.split(' |，|[|]|［|］', reply)
+            splitted_reply = [s.strip() for s in splitted_reply if s.strip()]
             absence_date = splitted_reply[0]
             absence_month, absence_day = absence_date.split("/")
             session = re.findall(r'\d+', splitted_reply[1])[0]
             name = splitted_reply[2]
             unit = splitted_reply[3]
             absence_type = splitted_reply[4]
-            if re.match(r"隔.{1}補休", absence_type):
+            if re.match(r"隔.{1}補(休|修)", absence_type):
                 absence_type = "隔天補休"
             user_info = {
                 "name":
