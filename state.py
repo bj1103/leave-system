@@ -470,22 +470,6 @@ class NightTimeoff(OtherTimeoff):
             data[indexes[i]] = [date]
         worksheet.update(f"D2:D{length+2}", data)
 
-
-
-        # target_row_id = -1
-        # deadline = datetime.max
-        # for row_id, row in enumerate(worksheet.get_all_records(expected_headers=night_timeoff_headers)):
-        #     if len(row["使用日期"]) == 0 and len(row["核發日期"]) != 0:
-        #         year, month, day = [int(x) for x in row["有效期限"].split("/")]
-        #         row_deadline = datetime(year=year, month=month, day=day)
-        #         if row_deadline < deadline:
-        #             deadline = row_deadline
-        #             target_row_id = row_id
-        # worksheet.update_cell(
-        #     row=target_row_id + 2,
-        #     col=4,
-        #     value=user_info["absence_date"].strftime('%Y/%-m/%-d'))
-
     def generate_message(self, user_info):
         try:
             absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
@@ -777,19 +761,7 @@ class FinishCancelTimeoff(State):
                     data[i] = [""]
                     previous = i
             night_timeoff_worksheet.update(f"D2:D{length+1}", data)
-            
-            # df = pd.DataFrame(worksheet.get_all_records(expected_headers=night_timeoff_headers))
-            # idxs = df[(df['使用日期'] == date)].index
-            # if len(idxs):
-            #     idx = int(idxs[-1]) + 2
-            #     worksheet.update_cell(
-            #         row=idx,
-            #         col=4,
-            #         value=""
-            #     )
-            # else:
-            #     fail = True
-
+           
         if fail == False:
             user_message = [TextMessage(text=f"已幫您取消該假，可透過選單查看請假紀錄", )]
             group_message = [
@@ -810,7 +782,6 @@ class FinishCancelTimeoff(State):
 
 
 def get_folder_id(parent_folder_id, folder_name):
-    """Finds the folder ID by its name inside a given parent folder."""
     query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     folders = results.get("files", [])
@@ -818,7 +789,7 @@ def get_folder_id(parent_folder_id, folder_name):
     if not folders:
         print(f"Folder '{folder_name}' not found in the specified parent folder.")
         return None
-    return folders[0]["id"]  # Assuming folder names are unique
+    return folders[0]["id"]
 
 
 class UploadProof(State):
@@ -841,81 +812,3 @@ class UploadProof(State):
     def next(self, user_input, user_info):
         return Normal()
 
-class UploadProofChooseDate(State):
-    def __init__(self):
-        super(UploadProofChooseDate, self).__init__()
-
-    def get_timeoff_without_proof(self, worksheet):
-        out = []
-        today = datetime.now(taipei_timezone)
-        today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        for row in worksheet.get_all_records():
-            if len(row["請假日期"]) and len(row["已上傳證明"]) == 0:
-                out.append(f"{row['請假日期']} {row['假別']}")
-        return out
-
-    def generate_message(self, user_info):
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-        worksheet = absence_record_sheet.worksheet(
-            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-        timeoff = self.get_timeoff_without_proof(worksheet) + ["返回"]
-        option_items = []
-        for option in timeoff:
-            option_items.append(
-                QuickReplyItem(
-                    action=MessageAction(label=option, text=f"{option}")))
-        message = [
-            TextMessage(text=f"請選擇您要上傳證明的日期，若要返回請按返回",
-                        quick_reply=QuickReply(items=option_items))
-        ]
-        return {"user": message, "group": None}
-
-    def next(self, user_input, user_info):
-        if "返回" in user_input:
-            return Normal
-        else:
-            try:
-                date, absence_type = user_input.split()
-                year, month, day = [int(x) for x in date.split("/")]
-                user_info['absence_date'] = datetime(year=year,
-                                                     month=month,
-                                                     day=day)
-                user_info['absence_type'] = absence_type
-                return UploadProofUploadImage
-            except:
-                return OutOfScope
-
-class UploadProofUploadImage(State):
-    def __init__(self):
-        super(UploadProofUploadImage, self).__init__()
-
-    def generate_message(self, user_info):
-        option_items = [QuickReplyItem(
-                    action=MessageAction(label="返回", text="返回"))]
-
-        message = [
-            TextMessage(text=f"請傳送你的請假證明照片，若要返回請按返回",
-                        quick_reply=QuickReply(items=option_items))
-        ]
-        return {"user": message, "group": None}
-
-    def next(self, user_input, user_info):
-        if user_input == "使用者已傳送圖片":
-            return FinishUploadProof
-        elif user_input == "返回":
-            return Normal
-        else:
-            return OutOfScope
-
-class FinishUploadProof(State):
-    def __init__(self):
-        super(FinishUploadProof, self).__init__()
-
-    def generate_message(self, user_info):
-        message = [
-            TextMessage(text=f"已上傳您的請假證明",)
-        ]
-        return {"user": message, "group": None}
-    
-    def next(self, user_input, user_info):
-        return Normal
