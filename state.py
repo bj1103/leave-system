@@ -8,8 +8,6 @@ import gspread
 import copy
 import json
 import os
-from googleapiclient.discovery import build
-from google.oauth2 import service_account
 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -28,12 +26,6 @@ db = mongo_client['absence-record']
 users_col = db['user']
 folders_col = db['folder']
 
-
-SCOPES = ["https://www.googleapis.com/auth/drive"]
-credentials = service_account.Credentials.from_service_account_info(
-    service_account_info, scopes=SCOPES
-)
-drive_service = build("drive", "v3", credentials=credentials)
 
 COMMAND_REQUEST_ABSENCE = "== 其他請假 =="
 COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
