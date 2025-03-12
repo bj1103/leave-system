@@ -11,6 +11,10 @@ import os
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+
+
 NIGHT_TIMEOFF_SHEET_KEY = "10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI"
 ABSENCE_RECORD_SHEET_KEY = "1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ"
 service_account_info = json.loads(os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON'))
@@ -19,12 +23,17 @@ service_account_info['private_key'] = service_account_info[
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
+mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
+db = mongo_client['absence-record']
+users_col = db['user']
+folders_col = db['folder']
+
+
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 credentials = service_account.Credentials.from_service_account_info(
     service_account_info, scopes=SCOPES
 )
 drive_service = build("drive", "v3", credentials=credentials)
-PARENT_FOLDER_ID = os.getenv("FOLDER_ID")
 
 COMMAND_REQUEST_ABSENCE = "== 其他請假 =="
 COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
@@ -781,15 +790,12 @@ class FinishCancelTimeoff(State):
         return Normal
 
 
-def get_folder_id(parent_folder_id, folder_name):
-    query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false"
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
-    folders = results.get("files", [])
-
-    if not folders:
-        print(f"Folder '{folder_name}' not found in the specified parent folder.")
+def get_folder_id(folder_name):
+    folder_info_from_db = folders_col.find_one({"_id": folder_name})
+    if folder_info_from_db:
+        return folder_info_from_db["folder_id"]
+    else:
         return None
-    return folders[0]["id"]
 
 
 class UploadProof(State):
@@ -798,7 +804,7 @@ class UploadProof(State):
 
     def generate_message(self, user_info):
         folder_name = f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}"
-        folder_id = get_folder_id(PARENT_FOLDER_ID, folder_name)
+        folder_id = get_folder_id(folder_name)
         if folder_id:
             message = [
                 TextMessage(text=f"請將證明上傳至 https://drive.google.com/drive/folders/{folder_id}?usp=sharing\n\n檔名請標明日期與假別 (Ex. 2025-02-03-補休.jpg)", )

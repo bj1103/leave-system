@@ -10,13 +10,10 @@ from linebot.v3.messaging import (
     PushMessageRequest,
 )
 from linebot.v3.webhooks import (MessageEvent, TextMessageContent, UnsendEvent)
-import pickle
 import os
 from state import *
 import re
 
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 
 USERS_DATA_FILE = "users_data.pkl"
 
@@ -24,10 +21,7 @@ app = Flask(__name__)
 configuration = Configuration(
     access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
-mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
 group_chat_id = os.getenv("GROUP_CHAT_ID")
-db = mongo_client['absence-record']
-users_col = db['user']
 
 users = dict()
 
