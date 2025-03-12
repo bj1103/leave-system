@@ -8,6 +8,8 @@ import gspread
 import copy
 import json
 import os
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
 NIGHT_TIMEOFF_SHEET_KEY = "10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI"
 ABSENCE_RECORD_SHEET_KEY = "1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ"
@@ -17,6 +19,13 @@ service_account_info['private_key'] = service_account_info[
 gc = gspread.service_account_from_dict(service_account_info)
 taipei_timezone = pytz.timezone('Asia/Taipei')
 
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+credentials = service_account.Credentials.from_service_account_info(
+    service_account_info, scopes=SCOPES
+)
+drive_service = build("drive", "v3", credentials=credentials)
+PARENT_FOLDER_ID = os.getenv("FOLDER_ID")
+
 COMMAND_REQUEST_ABSENCE = "== 其他請假 =="
 COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
 COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看剩餘夜假 =="
@@ -24,12 +33,13 @@ COMMAND_CHECK_ABSENCE_RECORD = "== 請假紀錄 =="
 COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
 COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
 COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
+COMMAND_UPLOAD_PROOF = "== 上傳請假證明 =="
 
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE, COMMAND_CANCEL_ABSENCE,
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
     COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF,
-    COMMAND_REQUEST_TOMORROW_TIMEOFF
+    COMMAND_REQUEST_TOMORROW_TIMEOFF, COMMAND_UPLOAD_PROOF
 }
 
 SUCCESS = "SUCCESS"
@@ -195,6 +205,8 @@ class Normal(State):
                 return OtherTimeoff
             else:
                 return AbsenceLate
+        elif user_input == COMMAND_UPLOAD_PROOF:
+            return UploadProof
         else:
             return OutOfScope
 
@@ -788,10 +800,122 @@ class FinishCancelTimeoff(State):
             ]
             return {"user": user_message, "group": group_message}
         else:
-            message = user_message = [
+            message = [
                 TextMessage(text="取消失敗，請重新操作 (請注意，若超過晚上8點，則不能取消今日之夜假或明日之補休)", )
             ]
             return {"user": message, "group": None}
 
+    def next(self, user_input, user_info):
+        return Normal
+
+
+def get_folder_id(parent_folder_id, folder_name):
+    """Finds the folder ID by its name inside a given parent folder."""
+    query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false"
+    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+    folders = results.get("files", [])
+
+    if not folders:
+        print(f"Folder '{folder_name}' not found in the specified parent folder.")
+        return None
+    return folders[0]["id"]  # Assuming folder names are unique
+
+
+class UploadProof(State):
+    def __init__(self):
+        super(UploadProof, self).__init__()
+
+    def generate_message(self, user_info):
+        folder_name = f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}"
+        folder_id = get_folder_id(PARENT_FOLDER_ID, folder_name)
+        if folder_id:
+            message = [
+                TextMessage(text=f"請將證明上傳至 https://drive.google.com/drive/folders/{folder_id}?usp=sharing\n\n檔名請標明日期與假別 (Ex. 2025-02-03-補休.jpg)", )
+            ]
+        else:
+            message = [
+                TextMessage(text=f"您的上傳資料夾尚未建立，請稍後再試", )
+            ]
+        return {"user": message, "group": None}
+
+    def next(self, user_input, user_info):
+        return Normal()
+
+class UploadProofChooseDate(State):
+    def __init__(self):
+        super(UploadProofChooseDate, self).__init__()
+
+    def get_timeoff_without_proof(self, worksheet):
+        out = []
+        today = datetime.now(taipei_timezone)
+        today = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        for row in worksheet.get_all_records():
+            if len(row["請假日期"]) and len(row["已上傳證明"]) == 0:
+                out.append(f"{row['請假日期']} {row['假別']}")
+        return out
+
+    def generate_message(self, user_info):
+        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
+        worksheet = absence_record_sheet.worksheet(
+            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+        timeoff = self.get_timeoff_without_proof(worksheet) + ["返回"]
+        option_items = []
+        for option in timeoff:
+            option_items.append(
+                QuickReplyItem(
+                    action=MessageAction(label=option, text=f"{option}")))
+        message = [
+            TextMessage(text=f"請選擇您要上傳證明的日期，若要返回請按返回",
+                        quick_reply=QuickReply(items=option_items))
+        ]
+        return {"user": message, "group": None}
+
+    def next(self, user_input, user_info):
+        if "返回" in user_input:
+            return Normal
+        else:
+            try:
+                date, absence_type = user_input.split()
+                year, month, day = [int(x) for x in date.split("/")]
+                user_info['absence_date'] = datetime(year=year,
+                                                     month=month,
+                                                     day=day)
+                user_info['absence_type'] = absence_type
+                return UploadProofUploadImage
+            except:
+                return OutOfScope
+
+class UploadProofUploadImage(State):
+    def __init__(self):
+        super(UploadProofUploadImage, self).__init__()
+
+    def generate_message(self, user_info):
+        option_items = [QuickReplyItem(
+                    action=MessageAction(label="返回", text="返回"))]
+
+        message = [
+            TextMessage(text=f"請傳送你的請假證明照片，若要返回請按返回",
+                        quick_reply=QuickReply(items=option_items))
+        ]
+        return {"user": message, "group": None}
+
+    def next(self, user_input, user_info):
+        if user_input == "使用者已傳送圖片":
+            return FinishUploadProof
+        elif user_input == "返回":
+            return Normal
+        else:
+            return OutOfScope
+
+class FinishUploadProof(State):
+    def __init__(self):
+        super(FinishUploadProof, self).__init__()
+
+    def generate_message(self, user_info):
+        message = [
+            TextMessage(text=f"已上傳您的請假證明",)
+        ]
+        return {"user": message, "group": None}
+    
     def next(self, user_input, user_info):
         return Normal

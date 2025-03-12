@@ -6,10 +6,11 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
+    MessagingApiBlob,
     ReplyMessageRequest,
     PushMessageRequest,
 )
-from linebot.v3.webhooks import (MessageEvent, TextMessageContent, UnsendEvent)
+from linebot.v3.webhooks import (MessageEvent, TextMessageContent, UnsendEvent, ImageMessageContent)
 import pickle
 import os
 from state import *
@@ -17,6 +18,11 @@ import re
 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from io import BytesIO
+
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from googleapiclient.http import MediaIoBaseUpload
 
 USERS_DATA_FILE = "users_data.pkl"
 
@@ -28,6 +34,14 @@ mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
 group_chat_id = os.getenv("GROUP_CHAT_ID")
 db = mongo_client['absence-record']
 users_col = db['user']
+
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+credentials = service_account.Credentials.from_service_account_info(
+    service_account_info, scopes=SCOPES
+)
+drive_service = build("drive", "v3", credentials=credentials)
+PARENT_FOLDER_ID = os.getenv("FOLDER_ID")
 
 users = dict()
 # users_data = dict()
@@ -172,6 +186,69 @@ def handle_message(event):
                     "unit": unit,
                 })
 
+@line_handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image_message(event):
+    # Get image content from LINE
+    with ApiClient(configuration) as api_client:
+        user_id = event.source.user_id
+        if users.get(user_id) != None and isinstance(users[user_id]["state"], UploadProofUploadImage):
+            user_info = users[user_id]["user_info"]
+            line_bot_api = MessagingApi(api_client)
+            line_bot_blob_api = MessagingApiBlob(api_client)
+            message_id = event.message.id
+            image_content = line_bot_blob_api.get_message_content(message_id)
+        
+            # Save image to memory
+            # try:
+            image_data = BytesIO(image_content)
+            # with open(f'{message_id}.jpg', 'wb') as fd:
+            #     fd.write(image_content)
+            # Upload to Google Drive
+            folder_name = f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}"
+            folder_id = get_folder_id(PARENT_FOLDER_ID, folder_name)
+            file_metadata = {
+                "name": f"{user_info['absence_date'].strftime('%Y-%m-%d')}_{user_info['absence_type']}.jpg",
+                "parents": [folder_id]
+            }
+            media = MediaIoBaseUpload(image_data, mimetype="image/jpeg", resumable=True)
+            drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+            
+            # Update sheet
+            absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
+            absence_worksheet = absence_record_sheet.worksheet(folder_name)
+            df = pd.DataFrame(absence_worksheet.get_all_records())
+            idxs = df[(df['請假日期'] == user_info['absence_date'].strftime('%Y/%-m/%-d'))
+                    & (df['假別'] == user_info['absence_type'])].index
+            print(idxs)
+            if len(idxs):
+                idx = int(idxs[-1])
+                absence_worksheet.update_cell(idx+2, 3, "是")
+
+            # Reply to user
+            
+            # line_bot_api.reply_message(event.reply_token, TextSendMessage(text="Image uploaded successfully!"))
+            users[user_id]["state"] = users[user_id]["state"].next(
+                "使用者已傳送圖片", users[user_id]['user_info'])()
+            
+            messages = users[user_id]["state"].generate_message(
+                users[user_id]["user_info"])
+            # except Exception as e:
+            #     messages = {"user": [TextMessage(text="無法上傳您的照片，請稍後再試，或直接把證明交給輔導員", )], "group": None}
+            #     users[user_id]["state"] = Normal()
+            if not users[user_id]["state"].block_for_next_message():
+                users[user_id]["state"] = users[user_id]["state"].next(
+                    "使用者已傳送圖片", users[user_id]['user_info'])()
+            # print("After state: ", users[user_id]["state"])
+            if messages["user"]:
+                r = line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(reply_token=event.reply_token,
+                                        messages=messages["user"]))
+                print("User response status code: ", r.status_code)
+            if messages["group"]:
+                r = line_bot_api.push_message_with_http_info(
+                    PushMessageRequest(to=group_chat_id,
+                                       messages=messages["group"]))
+                print("Group response status code: ", r.status_code)
 
 @line_handler.add(UnsendEvent)
 def handle_unseen(event):
