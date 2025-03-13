@@ -35,12 +35,14 @@ COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
 COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
 COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
 COMMAND_UPLOAD_PROOF = "== 上傳請假證明 =="
+COMMAND_CHECK_SELF_INFO = "== 查看個人資料 =="
+COMMAND_UPDATE_SELF_INFO = "== 更新個人資料 =="
 
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE, COMMAND_CANCEL_ABSENCE,
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
     COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF,
-    COMMAND_REQUEST_TOMORROW_TIMEOFF, COMMAND_UPLOAD_PROOF
+    COMMAND_REQUEST_TOMORROW_TIMEOFF, COMMAND_UPLOAD_PROOF, COMMAND_CHECK_SELF_INFO, COMMAND_UPDATE_SELF_INFO
 }
 
 SUCCESS = "SUCCESS"
@@ -162,6 +164,23 @@ class DataFinish(State):
         return Normal
 
 
+class DataCheck(State):
+    def __init__(self):
+        super(DataCheck, self).__init__()
+        self.block = False
+
+    def generate_message(self, user_info):
+        message = [
+            TextMessage(
+                text=
+                f"個人資料\n姓名: {user_info['name']}\n梯次: {user_info['session']}\n服勤單位: {user_info['unit']}",)
+        ]
+        return {"user": message, "group": None}
+    
+    def next(self, user_input, user_info):
+        return Normal
+
+
 class Normal(State):
 
     def __init__(self):
@@ -208,6 +227,10 @@ class Normal(State):
                 return AbsenceLate
         elif user_input == COMMAND_UPLOAD_PROOF:
             return UploadProof
+        elif user_input == COMMAND_CHECK_SELF_INFO:
+            return DataCheck
+        elif user_input == COMMAND_UPDATE_SELF_INFO:
+            return DataError
         else:
             return OutOfScope
 
