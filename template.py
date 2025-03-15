@@ -4,6 +4,7 @@ from linebot.v3.messaging import (
     FlexText,
     FlexButton,
     URIAction,
+    MessageAction
 )
 
 night_timeoff_template = FlexBubble(
@@ -56,12 +57,34 @@ absence_record_template = FlexBubble(
     footer=FlexBox(
         layout="vertical",
         contents=[
-            FlexButton(action=URIAction(
-                label="詳細資料",
-                uri=
-                "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing#gid="
-            ))
-        ]))
+            FlexButton(action=MessageAction(label="完整請假紀錄", text="== 完整請假紀錄 =="))
+        ]
+    )
+    # footer=FlexBox(
+    #     layout="vertical",
+    #     contents=[
+    #         FlexButton(action=URIAction(
+    #             label="詳細資料",
+    #             uri=
+    #             "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing#gid="
+    #         ))
+    #     ]
+    # )
+)
+
+full_absence_record_template = FlexBubble(
+    body=FlexBox(layout="vertical",
+                 contents=[
+                     FlexText(text="所有請假紀錄",
+                              weight="bold",
+                              size="xl",
+                              style="italic"),
+                     FlexBox(layout="vertical",
+                             margin="lg",
+                             spacing="sm",
+                             contents=[])
+                 ])
+)
 
 today_absence_template = FlexBubble(
     body=FlexBox(layout="vertical",
@@ -96,12 +119,14 @@ today_absence_template = FlexBubble(
                                          ])
                              ])
                  ]),
-    footer=FlexBox(
-        layout="vertical",
-        contents=[
-            FlexButton(action=URIAction(
-                label="詳細資料",
-                uri=
-                "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing"
-            ))
-        ]))
+    # footer=FlexBox(
+    #     layout="vertical",
+    #     contents=[
+    #         FlexButton(action=URIAction(
+    #             label="詳細資料",
+    #             uri=
+    #             "https://docs.google.com/spreadsheets/d/1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ/edit?usp=sharing"
+    #         ))
+    #     ]
+    # )
+)

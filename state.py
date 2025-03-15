@@ -1,9 +1,8 @@
 from linebot.v3.messaging import (TextMessage, FlexBox, FlexText, QuickReply,
                                   QuickReplyItem, MessageAction, FlexMessage)
-from template import night_timeoff_template, absence_record_template, today_absence_template
+from template import night_timeoff_template, absence_record_template, today_absence_template, full_absence_record_template
 from datetime import datetime, timedelta
 import pytz
-import pandas as pd
 import gspread
 import copy
 import json
@@ -11,10 +10,10 @@ import os
 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-
+from mongo_util import *
 
 NIGHT_TIMEOFF_SHEET_KEY = "10o1RavT1RGKFccEdukG1HsEgD3FPOBOPMB6fQqTc_wI"
-ABSENCE_RECORD_SHEET_KEY = "1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ"
+# ABSENCE_RECORD_SHEET_KEY = "1TxClL3L0pDQAIoIidgJh7SP-BF4GaBD6KKfVKw0CLZQ"
 service_account_info = json.loads(os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON'))
 service_account_info['private_key'] = service_account_info[
     'private_key'].replace("\\n", "\n")
@@ -25,12 +24,14 @@ mongo_client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
 db = mongo_client['absence-record']
 users_col = db['user']
 folders_col = db['folder']
+records_col = db['record']
 
 
 COMMAND_REQUEST_ABSENCE = "== 其他請假 =="
 COMMAND_CANCEL_ABSENCE = "== 取消請假 =="
 COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看剩餘夜假 =="
 COMMAND_CHECK_ABSENCE_RECORD = "== 請假紀錄 =="
+COMMAND_CHECK_FULL_ABSENCE_RECORD = "== 完整請假紀錄 =="
 COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
 COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
 COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
@@ -40,7 +41,7 @@ COMMAND_UPDATE_SELF_INFO = "== 更新個人資料 =="
 
 KEYWORD = {
     COMMAND_REQUEST_ABSENCE, COMMAND_CANCEL_ABSENCE,
-    COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
+    COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD, COMMAND_CHECK_FULL_ABSENCE_RECORD,
     COMMAND_CHECK_TODAY_ABSENCE, COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF,
     COMMAND_REQUEST_TOMORROW_TIMEOFF, COMMAND_UPLOAD_PROOF, COMMAND_CHECK_SELF_INFO, COMMAND_UPDATE_SELF_INFO
 }
@@ -50,8 +51,15 @@ SUCCESS = "SUCCESS"
 night_timeoff_headers = ["核發原因", "核發日期", "有效期限", "使用日期"]
 absence_headers = ["請假日期", "假別"]
 
+def user_id_to_info(user_id):
+    session, unit, name = user_id.split("_")
+    return session.strip("T"), unit, name
+
+def user_info_to_id(session, unit, name):
+    return f"{session}T_{unit}_{name}"
+
 def format_datetime(month, day):
-    today = datetime.now(taipei_timezone)
+    today = get_today_date()
     absence_day = today.replace(month=month, day=day)
     if absence_day < today:
         absence_day = absence_day.replace(year=absence_day.year + 1)
@@ -59,14 +67,14 @@ def format_datetime(month, day):
 
 
 def valid_date(absence_date, absence_type):
-    today = datetime.now(taipei_timezone)
+    now = datetime.now(taipei_timezone)
     overtime = False
-    if today.weekday() == 6:
-        overtime = today.hour > 22
+    if now.weekday() == 6:
+        overtime = now.hour > 22
     else:
-        overtime = today.hour > 20
+        overtime = now.hour > 20
 
-    today = today.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if (absence_type == "夜假" or absence_type == "隔天補休"
         ) and absence_date >= today + timedelta(days=1) * (overtime):
         return True
@@ -74,6 +82,21 @@ def valid_date(absence_date, absence_type):
         return True
     else:
         return False
+
+def get_valid_date():
+    today = datetime.now(taipei_timezone)
+    overtime = False
+    if today.weekday() == 6:
+        overtime = today.hour > 22
+    else:
+        overtime = (today.hour > 22) or (today.hour > 21 and today.minute > 30)
+    today = today.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    return today + timedelta(days=1) * (overtime)
+
+def get_today_date():
+    today = datetime.now(taipei_timezone)
+    return today.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 class State:
@@ -199,13 +222,12 @@ class Normal(State):
             return CheckNightTimeoff
         elif user_input == COMMAND_CHECK_ABSENCE_RECORD:
             return CheckAbsenceRecord
+        elif user_input == COMMAND_CHECK_FULL_ABSENCE_RECORD:
+            return CheckFullAbsenceRecord
         elif user_input == COMMAND_CHECK_TODAY_ABSENCE:
             return Administration
         elif user_input == COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF:
-            today = datetime.now(taipei_timezone).replace(hour=0,
-                                                          minute=0,
-                                                          second=0,
-                                                          microsecond=0)
+            today = get_today_date()
             user_info["absence_date"] = today
             user_info["absence_type"] = "夜假"
             if valid_date(user_info["absence_date"],
@@ -214,10 +236,7 @@ class Normal(State):
             else:
                 return AbsenceLate
         elif user_input == COMMAND_REQUEST_TOMORROW_TIMEOFF:
-            today = datetime.now(taipei_timezone).replace(hour=0,
-                                                          minute=0,
-                                                          second=0,
-                                                          microsecond=0)
+            today = get_today_date()
             user_info["absence_date"] = today
             user_info["absence_type"] = "隔天補休"
             if valid_date(user_info["absence_date"],
@@ -298,17 +317,11 @@ class AbsenceDate(State):
         if "取消" in user_input:
             return Normal
         elif user_input == "今天":
-            today = datetime.now(taipei_timezone).replace(hour=0,
-                                                          minute=0,
-                                                          second=0,
-                                                          microsecond=0)
+            today = get_today_date()
             user_info["absence_date"] = today
             return AbsenceConfirm
         elif user_input == "明天":
-            today = datetime.now(taipei_timezone).replace(hour=0,
-                                                          minute=0,
-                                                          second=0,
-                                                          microsecond=0)
+            today = get_today_date()
             user_info["absence_date"] = today + timedelta(days=1)
             return AbsenceConfirm
         elif "/" in user_input and len(user_input.split("/")) == 2:
@@ -403,48 +416,31 @@ class OtherTimeoff(State):
         super(OtherTimeoff, self).__init__()
         self.block = False
 
-    def update_absence_record(self, worksheet, user_info):
-        length = 0
-        absence_date = user_info['absence_date'].strftime('%Y/%-m/%-d')
-        absence_type = user_info['absence_type']
-
-        for record in worksheet.get_all_records(expected_headers=absence_headers):
-            if len(record["請假日期"]) != 0:
-                if absence_date == record["請假日期"]:
-                    return record["假別"]
-                length += 1
-            else:
-                break
-        if length == 0:
-            data = []
-        else:
-            data = worksheet.get(f"A2:B{length+1}")
-        data.append([
-            absence_date,
-            absence_type
-        ])
-        sorted_data = sorted(
-            data, key=lambda row: datetime.strptime(row[0], '%Y/%m/%d'))
-        worksheet.update(f"A2:B{length+2}", sorted_data)
-        return SUCCESS
-
     def generate_message(self, user_info):
         try:
-            absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-            worksheet = absence_record_sheet.worksheet(
-                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-            r = self.update_absence_record(worksheet, user_info)
-            if r == SUCCESS:
+            absence_record = get_absence_records(
+                records_col, 
+                absence_date=user_info['absence_date'].astimezone(pytz.utc), 
+                user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+            )
+            absence_record = list(absence_record)
+            if len(absence_record) > 0:
+                user_message = [TextMessage(text=f"您之前已在所選日期請了{absence_record[0]['type']}，若要更改假別，請先將舊的假取消", )]
+                group_message = None
+            else:
+                add_absence_record(
+                    records_col, 
+                    user_info['absence_date'].astimezone(pytz.utc), 
+                    user_info['absence_type'], 
+                    user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+                )
                 user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補休假/公差證明給輔導員", )]
                 group_message = [
                     TextMessage(
                         text=
                         f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} {user_info['absence_type']}",
                     )
-                ]
-            else:
-                user_message = [TextMessage(text=f"您之前已在所選日期請了{r}，若要更改假別，請先將舊的假取消", )]
-                group_message = None
+                ]     
         except gspread.exceptions.WorksheetNotFound:
             user_message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
             group_message = None
@@ -496,14 +492,19 @@ class NightTimeoff(OtherTimeoff):
 
     def generate_message(self, user_info):
         try:
-            absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-            absence_record_worksheet = absence_record_sheet.worksheet(
-                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-            r = self.update_absence_record(absence_record_worksheet, user_info)
-            if r == SUCCESS:
+            absence_record = get_absence_records(
+                records_col, 
+                absence_date=user_info['absence_date'].astimezone(pytz.utc), 
+                user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+            )
+            absence_record = list(absence_record)
+            if len(absence_record) > 0:
+                user_message = [TextMessage(text=f"您之前已在所選日期請了{absence_record[0]['type']}，若要更改假別，請先將舊的假取消", )]
+                group_message = None
+            else:
                 night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
                 night_timeoff_worksheet = night_timeoff_sheet.worksheet(
-                    f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+                    user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
                 available_night_timeoff = self.get_night_timeoff_amount(night_timeoff_worksheet)
 
                 if len(available_night_timeoff) == 0:
@@ -511,6 +512,12 @@ class NightTimeoff(OtherTimeoff):
                     group_message = None
                 else:
                     self.update_nigth_timeoff_sheet(night_timeoff_worksheet, user_info)
+                    add_absence_record(
+                        records_col, 
+                        user_info['absence_date'].astimezone(pytz.utc), 
+                        user_info['absence_type'], 
+                        user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+                    )
                     user_message = [TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄", )]
                     group_message = [
                         TextMessage(
@@ -518,9 +525,6 @@ class NightTimeoff(OtherTimeoff):
                             f"{user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} 夜假",
                         )
                     ]
-            else:
-                user_message = [TextMessage(text=f"您之前已在所選日期請了{r}，若要更改假別，請先將舊的假取消", )]
-                group_message = None
             return {"user": user_message, "group": group_message}
         except gspread.exceptions.WorksheetNotFound:
             message = [TextMessage(text="您的夜假資料尚未登入，請稍後再試", )]
@@ -556,7 +560,7 @@ class CheckNightTimeoff(NightTimeoff):
         try:
             night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
             worksheet = night_timeoff_sheet.worksheet(
-                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+                user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
             available_night_timeoff = self.get_night_timeoff_amount(worksheet)
             flex_message = copy.deepcopy(night_timeoff_template)
             flex_message.body.contents[0].text += str(
@@ -596,35 +600,41 @@ class CheckAbsenceRecord(State):
                        ])
 
     def generate_message(self, user_info):
-        try:
-            absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-            worksheet = absence_record_sheet.worksheet(
-                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+        records = get_absence_records(
+            records_col, 
+            user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+        ).sort("date", -1).limit(5)
+        flex_message = copy.deepcopy(absence_record_template)
+        for record in list(records)[::-1]:
+            date = pytz.utc.localize(record["date"]).astimezone(taipei_timezone)
+            flex_message.body.contents[1].contents.append(
+                self.generate_absence_record_box(
+                    date.strftime('%Y/%-m/%-d'), record["type"]))
 
-            flex_message = copy.deepcopy(absence_record_template)
-            count = 0
-            records = worksheet.get_all_records(expected_headers=absence_headers)
-            for record in records[::-1]:
-                if len(record["請假日期"]) == 0:
-                    continue
-                else:
-                    flex_message.body.contents[1].contents.insert(
-                        0,
-                        self.generate_absence_record_box(
-                            record["請假日期"], record["假別"]))
-                    count += 1
-                if count == 5:
-                    break
-            flex_message.footer.contents[0].action.uri += str(worksheet.id)
-            message = [FlexMessage(alt_text="請假紀錄", contents=flex_message)]
-        except gspread.exceptions.WorksheetNotFound:
-            message = [TextMessage(text="您的請假資料尚未登入，請稍後再試", )]
-
+        message = [FlexMessage(alt_text="請假紀錄", contents=flex_message)]
         return {"user": message, "group": None}
 
     def next(self, user_input, user_info):
         return Normal
 
+class CheckFullAbsenceRecord(CheckAbsenceRecord):
+    def __init__(self):
+        super(CheckFullAbsenceRecord, self).__init__()
+        self.block = False
+
+    def generate_message(self, user_info):
+        records = get_absence_records(
+            records_col, 
+            user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+        )
+        flex_message = copy.deepcopy(full_absence_record_template)
+        for record in list(records)[::-1]:
+            date = pytz.utc.localize(record["date"]).astimezone(taipei_timezone)
+            flex_message.body.contents[1].contents.append(
+                self.generate_absence_record_box(
+                    date.strftime('%Y/%-m/%-d'), record["type"]))
+        message = [FlexMessage(alt_text="完整請假紀錄", contents=flex_message)]
+        return {"user": message, "group": None}
 
 class Administration(State):
 
@@ -632,8 +642,7 @@ class Administration(State):
         super(Administration, self).__init__()
         self.block = False
 
-    def generate_today_absence_box(self, user, absence_type):
-        session, unit, name = user.split("_")
+    def generate_today_absence_box(self, session, unit, name, absence_type):
         return FlexBox(layout="baseline",
                        spacing="sm",
                        contents=[
@@ -659,15 +668,18 @@ class Administration(State):
                        ])
 
     def generate_message(self, user_info):
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-        worksheet = absence_record_sheet.worksheet("今日請假")
-        df = pd.DataFrame(worksheet.get_all_records())
-
+        records = get_absence_records(
+            records_col, 
+            absence_date=get_today_date().astimezone(pytz.utc)
+        )
+        records = list(records)
         flex_message = copy.deepcopy(today_absence_template)
-        for i, row in df.iterrows():
+        for record in records:
+            session, unit, name = user_id_to_info(record["userId"])
+            
             flex_message.body.contents[1].contents.append(
-                self.generate_today_absence_box(row["請假人"], row["假別"]))
-        flex_message.body.contents[0].text += str(len(df)) + "人"
+                self.generate_today_absence_box(session, unit, name, record["type"]))
+        flex_message.body.contents[0].text += str(len(records)) + "人"
         message = [FlexMessage(alt_text="今晚請假役男", contents=flex_message)]
 
         return {"user": message, "group": None}
@@ -681,24 +693,22 @@ class CancelTimeoff(State):
     def __init__(self):
         super(CancelTimeoff, self).__init__()
 
-    def get_future_timeoff(self, worksheet):
-        out = []
-        today = datetime.now(taipei_timezone)
-        today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        for row in worksheet.get_all_records(expected_headers=absence_headers):
-            if len(row["請假日期"]):
-                year, month, day = [int(x) for x in row["請假日期"].split("/")]
-                row_date = taipei_timezone.localize(
-                    datetime(year=year, month=month, day=day))
-                if valid_date(row_date, row["假別"]):
-                    out.append(f"{row['請假日期']} {row['假別']}")
-        return out
-
     def generate_message(self, user_info):
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-        worksheet = absence_record_sheet.worksheet(
-            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-        timeoff = self.get_future_timeoff(worksheet) + ["返回"]
+        date_condition = {
+            "$gte": get_valid_date().astimezone(pytz.utc),
+        }
+        records = get_absence_records(
+            records_col, 
+            absence_date=date_condition, 
+            user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+        )
+        timeoff = []
+        records = list(records)
+        records.sort(key=lambda x: x["date"])
+        for record in records:
+            date = pytz.utc.localize(record["date"]).astimezone(taipei_timezone)
+            timeoff.append(f"{date.strftime('%Y/%-m/%-d')} {record['type']}")
+        timeoff.append("返回")
         option_items = []
         for option in timeoff:
             option_items.append(
@@ -716,10 +726,7 @@ class CancelTimeoff(State):
         else:
             try:
                 date, absence_type = user_input.split()
-                year, month, day = [int(x) for x in date.split("/")]
-                user_info['absence_date'] = datetime(year=year,
-                                                     month=month,
-                                                     day=day)
+                user_info['absence_date'] = taipei_timezone.localize(datetime.strptime(date, '%Y/%m/%d'))
                 user_info['absence_type'] = absence_type
                 return FinishCancelTimeoff
             except:
@@ -734,39 +741,19 @@ class FinishCancelTimeoff(State):
 
     def generate_message(self, user_info):
         fail = False
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-        absence_worksheet = absence_record_sheet.worksheet(
-            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-        df = pd.DataFrame(absence_worksheet.get_all_records(expected_headers=absence_headers))
-        length = 0
-        for _, row in df.iterrows():
-            if len(row["請假日期"]) != 0:
-                length += 1
-            else:
-                break
-        
-        date = user_info['absence_date'].strftime('%Y/%-m/%-d')
-        idxs = df[(df['請假日期'] == date)
-                  & (df['假別'] == user_info['absence_type'])].index
-        if len(idxs):
-            idx = int(idxs[-1])
-            if idx == length - 1:
-                cells = absence_worksheet.range(f"A{idx + 2}:B{idx + 2}")
-                cells[0].value = ""
-                cells[1].value = ""
-                absence_worksheet.update_cells(cells)
-            else:
-                data = absence_worksheet.get(f"A{idx+3}:B{length+1}")
-                absence_worksheet.update(f"A{idx+2}:B{length}", data)
-                absence_worksheet.batch_clear([f"A{length+1}:B{length+1}"])
-        else:
-            fail = True
+        delete_absence_record(
+            records_col, 
+            absence_date=user_info["absence_date"].astimezone(pytz.utc), 
+            absence_type=user_info["absence_type"], 
+            user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+        )
 
+        date = user_info['absence_date'].strftime('%Y/%-m/%-d')
         if user_info["absence_type"] == "夜假":
             length = 0
             night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
             night_timeoff_worksheet = night_timeoff_sheet.worksheet(
-                f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
+                user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
             for record in night_timeoff_worksheet.get_all_records(expected_headers=night_timeoff_headers):
                 if len(record["使用日期"]) != 0:
                     length += 1
@@ -818,7 +805,7 @@ class UploadProof(State):
         super(UploadProof, self).__init__()
 
     def generate_message(self, user_info):
-        folder_name = f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}"
+        folder_name = user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
         folder_id = get_folder_id(folder_name)
         if folder_id:
             message = [

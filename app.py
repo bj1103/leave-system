@@ -132,7 +132,8 @@ def handle_message(event):
                 "absence_type":
                 absence_type,
                 "absence_date":
-                format_datetime(int(absence_month), int(absence_day))
+                format_datetime(int(absence_month), int(absence_day)),
+                "id": user_id
             }
             if absence_type == "夜假":
                 state = NightTimeoff()
