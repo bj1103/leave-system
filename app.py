@@ -14,7 +14,6 @@ import os
 from state import *
 import re
 
-
 USERS_DATA_FILE = "users_data.pkl"
 
 app = Flask(__name__)
@@ -24,6 +23,7 @@ line_handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 group_chat_id = os.getenv("GROUP_CHAT_ID")
 
 users = dict()
+
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -80,22 +80,22 @@ def handle_message(event):
                     users[user_id]["user_info"])
             except Exception as e:
                 app.logger.error(e)
-                messages = {"user": [TextMessage(text="系統錯誤，請稍後再試", )], "group": None}
+                messages = {
+                    "user": [TextMessage(text="系統錯誤，請稍後再試", )],
+                    "group": None
+                }
                 users[user_id]["state"] = Normal()
 
             if isinstance(users[user_id]["state"], DataFinish):
-                users_col.update_one(
-                    {"_id": user_id},
-                    {
-                        "$set": {
+                users_col.update_one({"_id": user_id}, {
+                    "$set": {
                         "_id": user_id,
                         "name": users[user_id]['user_info']["name"],
                         "session": users[user_id]['user_info']["session"],
                         "unit": users[user_id]['user_info']["unit"],
-                        }
                     }
-                )
-                
+                })
+
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
                     reply, users[user_id]['user_info'])()
@@ -133,7 +133,8 @@ def handle_message(event):
                 absence_type,
                 "absence_date":
                 format_datetime(int(absence_month), int(absence_day)),
-                "id": user_id
+                "id":
+                user_id
             }
             if absence_type == "夜假":
                 state = NightTimeoff()
@@ -162,8 +163,13 @@ def handle_unseen(event):
             "unit": user_info_from_db["unit"]
         }
 
-        newest_absence_record = get_absence_records(records_col, user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])).sort("date", -1).limit(1)
-        user_info['absence_date'] = pytz.utc.localize(newest_absence_record["date"]).astimezone(taipei_timezone)
+        newest_absence_record = get_absence_records(
+            records_col,
+            user_id=user_info_to_id(user_info['session'], user_info['unit'],
+                                    user_info['name'])).sort("date",
+                                                             -1).limit(1)
+        user_info['absence_date'] = pytz.utc.localize(
+            newest_absence_record["date"]).astimezone(taipei_timezone)
         user_info['absence_type'] = newest_absence_record["type"]
         state = FinishCancelTimeoff()
         state.generate_message(user_info)

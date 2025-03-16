@@ -1,11 +1,5 @@
-from linebot.v3.messaging import (
-    FlexBubble,
-    FlexBox,
-    FlexText,
-    FlexButton,
-    URIAction,
-    MessageAction
-)
+from linebot.v3.messaging import (FlexBubble, FlexBox, FlexText, FlexButton,
+                                  URIAction, MessageAction)
 
 night_timeoff_template = FlexBubble(
     body=FlexBox(layout="vertical",
@@ -57,9 +51,9 @@ absence_record_template = FlexBubble(
     footer=FlexBox(
         layout="vertical",
         contents=[
-            FlexButton(action=MessageAction(label="完整請假紀錄", text="== 完整請假紀錄 =="))
-        ]
-    )
+            FlexButton(
+                action=MessageAction(label="完整請假紀錄", text="== 完整請假紀錄 =="))
+        ])
     # footer=FlexBox(
     #     layout="vertical",
     #     contents=[
@@ -72,19 +66,12 @@ absence_record_template = FlexBubble(
     # )
 )
 
-all_absence_record_template = FlexBubble(
-    body=FlexBox(layout="vertical",
-                 contents=[
-                     FlexText(text="所有請假紀錄",
-                              weight="bold",
-                              size="xl",
-                              style="italic"),
-                     FlexBox(layout="vertical",
-                             margin="lg",
-                             spacing="sm",
-                             contents=[])
-                 ])
-)
+all_absence_record_template = FlexBubble(body=FlexBox(
+    layout="vertical",
+    contents=[
+        FlexText(text="所有請假紀錄", weight="bold", size="xl", style="italic"),
+        FlexBox(layout="vertical", margin="lg", spacing="sm", contents=[])
+    ]))
 
 today_absence_template = FlexBubble(
     body=FlexBox(layout="vertical",

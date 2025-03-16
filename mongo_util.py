@@ -1,4 +1,7 @@
-def count_absence_record(record_col, absence_date=None, absence_type=None, user_id=None):
+def count_absence_record(record_col,
+                         absence_date=None,
+                         absence_type=None,
+                         user_id=None):
     query = {}
     if absence_date:
         query["date"] = absence_date
@@ -8,7 +11,11 @@ def count_absence_record(record_col, absence_date=None, absence_type=None, user_
         query["userId"] = user_id
     return record_col.count_documents(query)
 
-def get_absence_records(record_col, absence_date=None, absence_type=None, user_id=None):
+
+def get_absence_records(record_col,
+                        absence_date=None,
+                        absence_type=None,
+                        user_id=None):
     query = {}
     if absence_date:
         query["date"] = absence_date
@@ -18,21 +25,16 @@ def get_absence_records(record_col, absence_date=None, absence_type=None, user_i
         query["userId"] = user_id
     return record_col.find(query)
 
+
 def add_absence_record(record_col, absence_date, absence_type, user_id):
-    data = {
-        "userId": user_id,
-        "type": absence_type,
-        "date": absence_date
-    }
+    data = {"userId": user_id, "type": absence_type, "date": absence_date}
     return record_col.insert_one(data)
 
+
 def delete_absence_record(record_col, absence_date, absence_type, user_id):
-    data = {
-        "userId": user_id,
-        "type": absence_type,
-        "date": absence_date
-    }
+    data = {"userId": user_id, "type": absence_type, "date": absence_date}
     return record_col.delete_one(data)
+
 
 def get_absence_users(record_col, absence_date=None, absence_type=None):
     match_condition = {}
@@ -40,17 +42,17 @@ def get_absence_users(record_col, absence_date=None, absence_type=None):
         match_condition["date"] = absence_date
     if absence_type:
         match_condition["type"] = absence_type
-    
+
     pipeline = [
         {
             "$match": match_condition
         },
         {
             "$lookup": {
-                "from": "user",   # 要 JOIN 的 collection
+                "from": "user",  # 要 JOIN 的 collection
                 "localField": "userId",  # collection_b 的 user_id
-                "foreignField": "_id", # collection_a 的 user_id
-                "as": "user_info"         # 輸出結果存放在 user_info
+                "foreignField": "_id",  # collection_a 的 user_id
+                "as": "user_info"  # 輸出結果存放在 user_info
             }
         },
         {
@@ -69,4 +71,3 @@ def get_absence_users(record_col, absence_date=None, absence_type=None):
         }
     ]
     return record_col.aggregate(pipeline)
-
