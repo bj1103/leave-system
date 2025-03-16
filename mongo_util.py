@@ -41,7 +41,6 @@ def get_absence_users(record_col, absence_date=None, absence_type=None):
     if absence_type:
         match_condition["type"] = absence_type
     
-    print(match_condition)
     pipeline = [
         {
             "$match": match_condition

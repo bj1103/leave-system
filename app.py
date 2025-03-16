@@ -161,19 +161,10 @@ def handle_unseen(event):
             "session": user_info_from_db["session"],
             "unit": user_info_from_db["unit"]
         }
-        absence_record_sheet = gc.open_by_key(ABSENCE_RECORD_SHEET_KEY)
-        worksheet = absence_record_sheet.worksheet(
-            f"{user_info['session']}T_{user_info['unit']}_{user_info['name']}")
-        absence_date = ""
-        absence_type = ""
-        for record in worksheet.get_all_records()[::-1]:
-            if len(record["請假日期"]):
-                absence_date = record["請假日期"]
-                absence_type = record["假別"]
-                break
-        year, month, day = [int(x) for x in absence_date.split("/")]
-        user_info['absence_date'] = datetime(year=year, month=month, day=day)
-        user_info['absence_type'] = absence_type
+
+        newest_absence_record = get_absence_records(records_col, user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])).sort("date", -1).limit(1)
+        user_info['absence_date'] = pytz.utc.localize(newest_absence_record["date"]).astimezone(taipei_timezone)
+        user_info['absence_type'] = newest_absence_record["type"]
         state = FinishCancelTimeoff()
         state.generate_message(user_info)
 

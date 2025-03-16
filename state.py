@@ -1,6 +1,6 @@
 from linebot.v3.messaging import (TextMessage, FlexBox, FlexText, QuickReply,
                                   QuickReplyItem, MessageAction, FlexMessage)
-from template import night_timeoff_template, absence_record_template, today_absence_template, full_absence_record_template
+from template import night_timeoff_template, absence_record_template, today_absence_template, all_absence_record_template
 from datetime import datetime, timedelta
 import pytz
 import gspread
@@ -98,6 +98,13 @@ def get_today_date():
     today = datetime.now(taipei_timezone)
     return today.replace(hour=0, minute=0, second=0, microsecond=0)
 
+
+def is_date_format(date_str, date_format="%Y/%m/%d"):
+    try:
+        datetime.strptime(date_str, date_format)
+        return True
+    except ValueError:
+        return False
 
 class State:
 
@@ -223,7 +230,7 @@ class Normal(State):
         elif user_input == COMMAND_CHECK_ABSENCE_RECORD:
             return CheckAbsenceRecord
         elif user_input == COMMAND_CHECK_FULL_ABSENCE_RECORD:
-            return CheckFullAbsenceRecord
+            return CheckAllAbsenceRecord
         elif user_input == COMMAND_CHECK_TODAY_ABSENCE:
             return Administration
         elif user_input == COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF:
@@ -456,31 +463,27 @@ class NightTimeoff(OtherTimeoff):
         super(NightTimeoff, self).__init__()
         self.block = False
 
-    def get_night_timeoff_amount(self, worksheet):
+    def get_night_timeoff_amount(self, records):
         available_night_timeoff = []
-        for row in worksheet.get_all_records(expected_headers=night_timeoff_headers):
+        for row in records:
             if len(row["使用日期"]) == 0 and len(row["核發日期"]) != 0:
                 available_night_timeoff.append(row["有效期限"])
         return available_night_timeoff
 
-    def update_nigth_timeoff_sheet(self, worksheet, user_info):
-        length = 0
-        for record in worksheet.get_all_records(expected_headers=night_timeoff_headers):
+    def update_nigth_timeoff_sheet(self, worksheet, records, user_info):
+        data = []
+        for record in records:
             if len(record["使用日期"]) != 0:
-                length += 1
+                data.append([record["使用日期"]])
             else:
                 break
-        if length == 0:
-            data = []
-        else:
-            data = worksheet.get(f"D2:D{length+1}")
         data.append([
             user_info['absence_date'].strftime('%Y/%-m/%-d')
         ])
         sorted_data = []
         indexes = []
         for i, date in enumerate(data):
-            if date[0] != "已過期":
+            if is_date_format(date[0]):
                 sorted_data.append(date[0])
                 indexes.append(i)
 
@@ -488,7 +491,7 @@ class NightTimeoff(OtherTimeoff):
         
         for i, date in enumerate(sorted_data):
             data[indexes[i]] = [date]
-        worksheet.update(f"D2:D{length+2}", data)
+        worksheet.update(f"D2:D{len(data)+2}", data)
 
     def generate_message(self, user_info):
         try:
@@ -505,13 +508,14 @@ class NightTimeoff(OtherTimeoff):
                 night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
                 night_timeoff_worksheet = night_timeoff_sheet.worksheet(
                     user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
-                available_night_timeoff = self.get_night_timeoff_amount(night_timeoff_worksheet)
+                night_timeoff_records = night_timeoff_worksheet.get_all_records()
+                available_night_timeoff = self.get_night_timeoff_amount(night_timeoff_records)
 
                 if len(available_night_timeoff) == 0:
                     user_message = [TextMessage(text=f"您目前沒有可用夜假", )]
                     group_message = None
                 else:
-                    self.update_nigth_timeoff_sheet(night_timeoff_worksheet, user_info)
+                    self.update_nigth_timeoff_sheet(night_timeoff_worksheet, night_timeoff_records, user_info)
                     add_absence_record(
                         records_col, 
                         user_info['absence_date'].astimezone(pytz.utc), 
@@ -561,7 +565,8 @@ class CheckNightTimeoff(NightTimeoff):
             night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
             worksheet = night_timeoff_sheet.worksheet(
                 user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
-            available_night_timeoff = self.get_night_timeoff_amount(worksheet)
+            night_timeoff_records = worksheet.get_all_records()
+            available_night_timeoff = self.get_night_timeoff_amount(night_timeoff_records)
             flex_message = copy.deepcopy(night_timeoff_template)
             flex_message.body.contents[0].text += str(
                 len(available_night_timeoff))
@@ -617,17 +622,17 @@ class CheckAbsenceRecord(State):
     def next(self, user_input, user_info):
         return Normal
 
-class CheckFullAbsenceRecord(CheckAbsenceRecord):
+class CheckAllAbsenceRecord(CheckAbsenceRecord):
     def __init__(self):
-        super(CheckFullAbsenceRecord, self).__init__()
+        super(CheckAllAbsenceRecord, self).__init__()
         self.block = False
 
     def generate_message(self, user_info):
         records = get_absence_records(
             records_col, 
             user_id=user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
-        )
-        flex_message = copy.deepcopy(full_absence_record_template)
+        ).sort("date", -1)
+        flex_message = copy.deepcopy(all_absence_record_template)
         for record in list(records)[::-1]:
             date = pytz.utc.localize(record["date"]).astimezone(taipei_timezone)
             flex_message.body.contents[1].contents.append(
@@ -750,28 +755,28 @@ class FinishCancelTimeoff(State):
 
         date = user_info['absence_date'].strftime('%Y/%-m/%-d')
         if user_info["absence_type"] == "夜假":
-            length = 0
             night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
             night_timeoff_worksheet = night_timeoff_sheet.worksheet(
                 user_info_to_id(user_info['session'], user_info['unit'], user_info['name']))
-            for record in night_timeoff_worksheet.get_all_records(expected_headers=night_timeoff_headers):
+            night_timeoff_records = night_timeoff_worksheet.get_all_records()
+            
+            data = []
+            for record in night_timeoff_records:
                 if len(record["使用日期"]) != 0:
-                    length += 1
+                    data.append([record["使用日期"]])
                 else:
                     break
-
-            data = night_timeoff_worksheet.get(f"D2:D{length+1}")
 
             previous = -1
             for i in range(len(data)):
                 if previous == -1 and data[i][0] == date:
                     data[i] = [""]
                     previous = i
-                elif previous != -1 and data[i][0] != "已過期":
+                elif previous != -1 and is_date_format(data[i][0]):
                     data[previous] = data[i]
                     data[i] = [""]
                     previous = i
-            night_timeoff_worksheet.update(f"D2:D{length+1}", data)
+            night_timeoff_worksheet.update(f"D2:D{len(data)+1}", data)
            
         if fail == False:
             user_message = [TextMessage(text=f"已幫您取消該假，可透過選單查看請假紀錄", )]

@@ -72,7 +72,7 @@ absence_record_template = FlexBubble(
     # )
 )
 
-full_absence_record_template = FlexBubble(
+all_absence_record_template = FlexBubble(
     body=FlexBox(layout="vertical",
                  contents=[
                      FlexText(text="所有請假紀錄",
