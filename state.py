@@ -73,10 +73,9 @@ def valid_date(absence_date, absence_type):
     now = datetime.now(taipei_timezone)
     overtime = False
     if now.weekday() == 6:
-        overtime = now.hour > 22
+        overtime = now.hour >= 22
     else:
-        overtime = now.hour > 20
-
+        overtime = now.hour >= 20
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if (absence_type == "夜假" or absence_type == "隔天補休"
         ) and absence_date >= today + timedelta(days=1) * (overtime):
@@ -571,17 +570,25 @@ class CheckNightTimeoff(NightTimeoff):
 
     def generate_night_timeoff_box(self, night_timeoff):
         deadline = night_timeoff["有效期限"]
-        deadline = datetime.strptime(deadline, '%Y/%m/%d').strftime('%Y/%m/%d')
+        deadline = datetime.strptime(night_timeoff["有效期限"], '%Y/%m/%d').strftime('%m/%d')
         reason = night_timeoff["核發原因"]
-        year, month, day = [int(x) for x in deadline.split("/")]
+        use_date = night_timeoff["使用日期"]
+        if is_date_format(use_date):
+            use_date = datetime.strptime(night_timeoff["使用日期"], '%Y/%m/%d').strftime('%m/%d')
+        elif len(use_date) == 0:
+            use_date = " "
         return FlexBox(layout="baseline",
                        spacing="sm",
                        contents=[
                            FlexText(text=reason,
-                                    flex=4,
+                                    flex=6,
                                     size="sm",
                                     wrap=True),
                            FlexText(text=deadline,
+                                    flex=2,
+                                    size="sm",
+                                    wrap=True),
+                            FlexText(text=use_date,
                                     flex=2,
                                     size="sm",
                                     wrap=True)
@@ -599,9 +606,9 @@ class CheckNightTimeoff(NightTimeoff):
             flex_message = copy.deepcopy(night_timeoff_template)
             flex_message.body.contents[0].text += str(
                 len(available_night_timeoff))
-            for nigth_timeoff in available_night_timeoff:
+            for record in night_timeoff_records:
                 flex_message.body.contents[1].contents.append(
-                    self.generate_night_timeoff_box(nigth_timeoff))
+                    self.generate_night_timeoff_box(record))
             flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
         except gspread.exceptions.WorksheetNotFound:
@@ -624,12 +631,10 @@ class CheckAbsenceRecord(State):
                        contents=[
                            FlexText(text=date,
                                     flex=3,
-                                    size="sm",
-                                    color="#aaaaaa"),
+                                    size="sm"),
                            FlexText(text=absence_type,
                                     flex=3,
                                     size="sm",
-                                    color="#666666",
                                     wrap=True)
                        ])
 

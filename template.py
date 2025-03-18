@@ -4,25 +4,29 @@ from linebot.v3.messaging import (FlexBubble, FlexBox, FlexText, FlexButton,
 night_timeoff_template = FlexBubble(
     body=FlexBox(layout="vertical",
                  contents=[
-                     FlexText(text="夜假總數: ",
+                     FlexText(text="可用夜假總數: ",
                               weight="bold",
-                              size="xl",
-                              style="italic"),
+                              size="xl",),
                      FlexBox(layout="vertical",
                              margin="lg",
-                             spacing="sm",
+                             spacing="lg",
                              contents=[
                                  FlexBox(layout="baseline",
                                          spacing="sm",
                                          contents=[
                                              FlexText(text="核發原因",
-                                                      flex=4,
-                                                      size="md",
+                                                      flex=6,
+                                                      size="sm",
                                                       color="#666666",
                                                       weight="bold"),
                                              FlexText(text="到期日",
                                                       flex=2,
-                                                      size="md",
+                                                      size="sm",
+                                                      color="#666666",
+                                                      weight="bold"),
+                                            FlexText(text="使用日",
+                                                      flex=2,
+                                                      size="sm",
                                                       color="#666666",
                                                       weight="bold")
                                          ])
@@ -43,8 +47,7 @@ absence_record_template = FlexBubble(
                  contents=[
                      FlexText(text="近期5筆請假紀錄",
                               weight="bold",
-                              size="xl",
-                              style="italic"),
+                              size="xl"),
                      FlexBox(layout="vertical",
                              margin="lg",
                              spacing="sm",
@@ -71,7 +74,7 @@ absence_record_template = FlexBubble(
 all_absence_record_template = FlexBubble(body=FlexBox(
     layout="vertical",
     contents=[
-        FlexText(text="所有請假紀錄", weight="bold", size="xl", style="italic"),
+        FlexText(text="所有請假紀錄", weight="bold", size="xl"),
         FlexBox(layout="vertical", margin="lg", spacing="sm", contents=[])
     ]))
 
@@ -80,8 +83,7 @@ today_absence_template = FlexBubble(
                  contents=[
                      FlexText(text="今日請假役男: ",
                               weight="bold",
-                              size="xl",
-                              style="italic"),
+                              size="xl"),
                      FlexBox(layout="vertical",
                              margin="lg",
                              spacing="sm",
