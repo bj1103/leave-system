@@ -481,8 +481,8 @@ class NightTimeoff(OtherTimeoff):
     def get_night_timeoff_amount(self, records):
         available_night_timeoff = []
         for row in records:
-            if len(row["使用日期"]) == 0 and len(row["核發日期"]) != 0:
-                available_night_timeoff.append(row["有效期限"])
+            if len(row["使用日期"]) == 0:
+                available_night_timeoff.append(row)
         return available_night_timeoff
 
     def update_nigth_timeoff_sheet(self, worksheet, records, user_info):
@@ -569,19 +569,21 @@ class CheckNightTimeoff(NightTimeoff):
         super(CheckNightTimeoff, self).__init__()
         self.block = False
 
-    def generate_night_timeoff_box(self, id, deadline):
+    def generate_night_timeoff_box(self, night_timeoff):
+        deadline = night_timeoff["有效期限"]
+        deadline = datetime.strptime(deadline, '%Y/%m/%d').strftime('%Y/%m/%d')
+        reason = night_timeoff["核發原因"]
         year, month, day = [int(x) for x in deadline.split("/")]
         return FlexBox(layout="baseline",
                        spacing="sm",
                        contents=[
-                           FlexText(text=f"{id}.",
-                                    flex=1,
+                           FlexText(text=reason,
+                                    flex=4,
                                     size="sm",
-                                    color="#aaaaaa"),
-                           FlexText(text=f"{year}/{month:02d}/{day:02d}",
-                                    flex=3,
+                                    wrap=True),
+                           FlexText(text=deadline,
+                                    flex=2,
                                     size="sm",
-                                    color="#666666",
                                     wrap=True)
                        ])
 
@@ -597,9 +599,9 @@ class CheckNightTimeoff(NightTimeoff):
             flex_message = copy.deepcopy(night_timeoff_template)
             flex_message.body.contents[0].text += str(
                 len(available_night_timeoff))
-            for i, nigth_timeoff in enumerate(available_night_timeoff):
+            for nigth_timeoff in available_night_timeoff:
                 flex_message.body.contents[1].contents.append(
-                    self.generate_night_timeoff_box(i + 1, nigth_timeoff))
+                    self.generate_night_timeoff_box(nigth_timeoff))
             flex_message.footer.contents[0].action.uri += str(worksheet.id)
             message = [FlexMessage(alt_text="夜假", contents=flex_message)]
         except gspread.exceptions.WorksheetNotFound:

@@ -15,13 +15,15 @@ night_timeoff_template = FlexBubble(
                                  FlexBox(layout="baseline",
                                          spacing="sm",
                                          contents=[
-                                             FlexText(text="id",
-                                                      flex=1,
+                                             FlexText(text="核發原因",
+                                                      flex=4,
                                                       size="md",
+                                                      color="#666666",
                                                       weight="bold"),
                                              FlexText(text="到期日",
-                                                      flex=3,
+                                                      flex=2,
                                                       size="md",
+                                                      color="#666666",
                                                       weight="bold")
                                          ])
                              ])
