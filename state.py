@@ -43,7 +43,7 @@ KEYWORD = {
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
     COMMAND_CHECK_FULL_ABSENCE_RECORD, COMMAND_CHECK_TODAY_ABSENCE,
     COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF, COMMAND_REQUEST_TOMORROW_TIMEOFF,
-    COMMAND_UPLOAD_PROOF, COMMAND_CHECK_SELF_INFO, COMMAND_UPDATE_SELF_INFO
+    COMMAND_CHECK_SELF_INFO, COMMAND_UPDATE_SELF_INFO
 }
 
 SUCCESS = "SUCCESS"
@@ -258,8 +258,6 @@ class Normal(State):
                 return OtherTimeoff
             else:
                 return AbsenceLate
-        elif user_input == COMMAND_UPLOAD_PROOF:
-            return UploadProof
         elif user_input == COMMAND_CHECK_SELF_INFO:
             return DataCheck
         elif user_input == COMMAND_UPDATE_SELF_INFO:
