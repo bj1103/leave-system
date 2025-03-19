@@ -112,7 +112,7 @@ def handle_message(event):
                 print("Group response status code: ", r.status_code)
         elif event.source.type == "group":
             reply = event.message.text.strip()
-            splitted_reply = re.split(' |，|\[|\]|［|］|\n', reply)
+            splitted_reply = re.split(r" |，|\[|\]|［|］|\n", reply)
             splitted_reply = [s.strip() for s in splitted_reply if s.strip()]
             absence_date = splitted_reply[0]
             absence_month, absence_day = absence_date.split("/")
