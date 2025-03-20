@@ -586,11 +586,12 @@ class CheckNightTimeoff(NightTimeoff):
 
     def generate_night_timeoff_box(self, night_timeoff):
         deadline = night_timeoff["有效期限"]
-        deadline = datetime.strptime(night_timeoff["有效期限"], '%Y/%m/%d').strftime('%m/%d')
+        if is_date_format(deadline):
+            deadline = datetime.strptime(deadline, '%Y/%m/%d').strftime('%m/%d')
         reason = night_timeoff["核發原因"]
         use_date = night_timeoff["使用日期"]
         if is_date_format(use_date):
-            use_date = datetime.strptime(night_timeoff["使用日期"], '%Y/%m/%d').strftime('%m/%d')
+            use_date = datetime.strptime(use_date, '%Y/%m/%d').strftime('%m/%d')
         elif len(use_date) == 0:
             use_date = " "
         return FlexBox(layout="baseline",
