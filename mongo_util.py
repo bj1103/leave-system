@@ -71,3 +71,8 @@ def get_absence_users(record_col, absence_date=None, absence_type=None):
         }
     ]
     return record_col.aggregate(pipeline)
+
+
+def check_user_exists(col, user_id):
+    query = {"_id": user_id}
+    return col.find_one(query)

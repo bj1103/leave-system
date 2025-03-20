@@ -167,7 +167,12 @@ class DataConfirm(State):
 
     def next(self, user_input, user_info):
         if user_input == "個資正確":
-            return DataFinish
+            user_id = user_info_to_id(user_info['session'], user_info['unit'], user_info['name'])
+            result = check_user_exists(folders_col, user_id)
+            if result:
+                return DataFinish
+            else:
+                return DataNotFound
         else:
             return DataError
 
@@ -181,6 +186,19 @@ class DataError(DataCollect):
         message = [
             TextMessage(
                 text=f"請重新輸入您的中文姓名、梯次與服勤單位，中間用空白隔開 (Ex. 王小明 261 社家署)", )
+        ]
+        return {"user": message, "group": None}
+
+
+class DataNotFound(DataCollect):
+
+    def __init__(self):
+        super(DataNotFound, self).__init__()
+
+    def generate_message(self, user_info):
+        message = [
+            TextMessage(
+                text=f"您輸入的個資有誤，或輔導員尚未將您加入系統，請洽輔導員詢問，或重新輸入您的中文姓名、梯次與服勤單位，中間用空白隔開 (Ex. 王小明 261 社家署)", )
         ]
         return {"user": message, "group": None}
 
