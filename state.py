@@ -74,9 +74,11 @@ def valid_date(absence_date, absence_type):
     now = datetime.now(taipei_timezone)
     overtime = False
     if now.weekday() == 6:
-        overtime = now.hour >= 22
+        limit = now.replace(hour=22, minute=0, second=0, microsecond=0)
+        overtime = now >= limit
     else:
-        overtime = now.hour >= 20
+        limit = now.replace(hour=21, minute=30, second=0, microsecond=0)
+        overtime = now >= limit
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if (absence_type == "夜假" or absence_type == "隔天補休"
         ) and absence_date >= today + timedelta(days=1) * (overtime):
@@ -816,38 +818,41 @@ class FinishCancelTimeoff(State):
 
     def generate_message(self, user_info):
         fail = False
-        delete_absence_record(
-            records_col,
-            absence_date=user_info["absence_date"].astimezone(pytz.utc),
-            absence_type=user_info["absence_type"],
-            user_id=user_info_to_id(user_info['session'], user_info['unit'],
+        if not valid_date(user_info["absence_date"], user_info["absence_type"]):
+            fail = True
+        else:
+            delete_absence_record(
+                records_col,
+                absence_date=user_info["absence_date"].astimezone(pytz.utc),
+                absence_type=user_info["absence_type"],
+                user_id=user_info_to_id(user_info['session'], user_info['unit'],
+                                        user_info['name']))
+
+            date = user_info['absence_date'].strftime('%Y/%-m/%-d')
+            if user_info["absence_type"] == "夜假":
+                night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
+                night_timeoff_worksheet = night_timeoff_sheet.worksheet(
+                    user_info_to_id(user_info['session'], user_info['unit'],
                                     user_info['name']))
+                night_timeoff_records = night_timeoff_worksheet.get_all_records()
 
-        date = user_info['absence_date'].strftime('%Y/%-m/%-d')
-        if user_info["absence_type"] == "夜假":
-            night_timeoff_sheet = gc.open_by_key(NIGHT_TIMEOFF_SHEET_KEY)
-            night_timeoff_worksheet = night_timeoff_sheet.worksheet(
-                user_info_to_id(user_info['session'], user_info['unit'],
-                                user_info['name']))
-            night_timeoff_records = night_timeoff_worksheet.get_all_records()
+                data = []
+                for record in night_timeoff_records:
+                    if len(record["使用日期"]) != 0:
+                        data.append([record["使用日期"]])
+                    else:
+                        break
 
-            data = []
-            for record in night_timeoff_records:
-                if len(record["使用日期"]) != 0:
-                    data.append([record["使用日期"]])
-                else:
-                    break
-
-            previous = -1
-            for i in range(len(data)):
-                if previous == -1 and data[i][0] == date:
-                    data[i] = [""]
-                    previous = i
-                elif previous != -1 and is_date_format(data[i][0]):
-                    data[previous] = data[i]
-                    data[i] = [""]
-                    previous = i
-            night_timeoff_worksheet.update(f"D2:D{len(data)+1}", data)
+                previous = -1
+                for i in range(len(data)):
+                    if previous == -1 and data[i][0] == date:
+                        data[i] = [""]
+                        previous = i
+                    elif previous != -1 and is_date_format(data[i][0]):
+                        data[previous] = data[i]
+                        data[i] = [""]
+                        previous = i
+                night_timeoff_worksheet.update(f"D2:D{len(data)+1}", data)
 
         if fail == False:
             user_message = [TextMessage(text=f"已幫您取消該假，可透過選單查看請假紀錄", )]
@@ -860,7 +865,7 @@ class FinishCancelTimeoff(State):
             return {"user": user_message, "group": group_message}
         else:
             message = [
-                TextMessage(text="取消失敗，請重新操作 (請注意，若超過晚上8點，則不能取消今日之夜假或明日之補休)", )
+                TextMessage(text="取消失敗，請重新操作 (請注意，若超過規定時間，則不能取消今日之夜假或明日之補休)", )
             ]
             return {"user": message, "group": None}
 
