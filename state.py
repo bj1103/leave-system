@@ -32,9 +32,13 @@ COMMAND_CHECK_NIGHT_TIMEOFF = "== 查看剩餘夜假 =="
 COMMAND_CHECK_ABSENCE_RECORD = "== 請假紀錄 =="
 COMMAND_CHECK_FULL_ABSENCE_RECORD = "== 完整請假紀錄 =="
 COMMAND_CHECK_TODAY_ABSENCE = "== 今日請假役男 =="
+
 COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF = "== 請今晚夜假 =="
 COMMAND_REQUEST_TOMORROW_TIMEOFF = "== 請隔天補休 =="
 COMMAND_REQUEST_OFFICIAL_LEAVE = "== 請公假 =="
+COMMAND_REQUEST_SICK_LEAVE = "== 請病假 =="
+COMMAND_REQUEST_PERSONAL_LEAVE = "== 請事假 =="
+
 COMMAND_UPLOAD_PROOF = "== 上傳請假證明 =="
 COMMAND_CHECK_SELF_INFO = "== 查看個人資料 =="
 COMMAND_UPDATE_SELF_INFO = "== 更新個人資料 =="
@@ -44,13 +48,22 @@ KEYWORD = {
     COMMAND_CHECK_NIGHT_TIMEOFF, COMMAND_CHECK_ABSENCE_RECORD,
     COMMAND_CHECK_FULL_ABSENCE_RECORD, COMMAND_CHECK_TODAY_ABSENCE,
     COMMAND_REQUEST_TODAY_NIGHT_TIMEOFF, COMMAND_REQUEST_TOMORROW_TIMEOFF, COMMAND_REQUEST_OFFICIAL_LEAVE,
+    COMMAND_REQUEST_SICK_LEAVE, COMMAND_REQUEST_PERSONAL_LEAVE,
     COMMAND_CHECK_SELF_INFO, COMMAND_UPDATE_SELF_INFO
+}
+
+COMMAND_TO_TYPE = {
+    COMMAND_REQUEST_TOMORROW_TIMEOFF: "隔天補休",
+    COMMAND_REQUEST_OFFICIAL_LEAVE: "公假",
+    COMMAND_REQUEST_SICK_LEAVE: "病假",
+    COMMAND_REQUEST_PERSONAL_LEAVE: "事假"
 }
 
 SUCCESS = "SUCCESS"
 
 night_timeoff_headers = ["核發原因", "核發日期", "有效期限", "使用日期"]
 absence_headers = ["請假日期", "假別"]
+absence_types = ["夜假", "隔天補休", "公假", "病假", "事假"]
 
 
 def user_id_to_info(user_id):
@@ -80,10 +93,12 @@ def valid_date(absence_date, absence_type):
         limit = now.replace(hour=21, minute=30, second=0, microsecond=0)
         overtime = now >= limit
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if (absence_type == "夜假" or absence_type == "隔天補休"
-        ) and absence_date >= today + timedelta(days=1) * (overtime):
-        return True
-    elif absence_type == "公假" and absence_date >= today:
+    if absence_type == "夜假" or absence_type == "隔天補休":
+        if absence_date >= today + timedelta(days=1) * (overtime):
+            return True
+        else:
+            return False
+    elif absence_date >= today:
         return True
     else:
         return False
@@ -270,19 +285,10 @@ class Normal(State):
                 return NightTimeoff
             else:
                 return AbsenceLate
-        elif user_input == COMMAND_REQUEST_TOMORROW_TIMEOFF:
+        elif user_input in COMMAND_TO_TYPE.keys():
             today = get_today_date()
             user_info["absence_date"] = today
-            user_info["absence_type"] = "隔天補休"
-            if valid_date(user_info["absence_date"],
-                          user_info["absence_type"]):
-                return OtherTimeoff
-            else:
-                return AbsenceLate
-        elif user_input == COMMAND_REQUEST_OFFICIAL_LEAVE:
-            today = get_today_date()
-            user_info["absence_date"] = today
-            user_info["absence_type"] = "公假"
+            user_info["absence_type"] = COMMAND_TO_TYPE[user_input]
             if valid_date(user_info["absence_date"],
                           user_info["absence_type"]):
                 return OtherTimeoff
@@ -317,7 +323,8 @@ class Absence(State):
 
     def generate_message(self, user_info):
         option_items = []
-        for option in ['夜假', '隔天補休', '公假', '返回']:
+        options = absence_types + ["返回"]
+        for option in options:
             option_items.append(
                 QuickReplyItem(
                     action=MessageAction(label=option, text=f"{option}")))
@@ -328,7 +335,7 @@ class Absence(State):
         return {"user": message, "group": None}
 
     def next(self, user_input, user_info):
-        if user_input == "夜假" or user_input == "隔天補休" or user_input == "公假":
+        if user_input in absence_types:
             user_info["absence_type"] = user_input
             return AbsenceDate
         elif user_input == "返回":
@@ -482,7 +489,7 @@ class OtherTimeoff(State):
                     user_info_to_id(user_info['session'], user_info['unit'],
                                     user_info['name']))
                 user_message = [
-                    TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補休假/公假證明給輔導員", )
+                    TextMessage(text=f"已登記您的請假申請，可透過選單查看請假紀錄，記得補證明給輔導員", )
                 ]
                 group_message = [
                     TextMessage(
