@@ -866,7 +866,7 @@ class FinishCancelTimeoff(State):
             group_message = [
                 TextMessage(
                     text=
-                    f"== 取消請假 == {user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} 夜假",
+                    f"== 取消請假 == {user_info['absence_date'].strftime('%Y/%-m/%-d')} [{user_info['session']}梯次］{user_info['name']} {user_info['unit']} {user_info["absence_type"]}",
                 )
             ]
             return {"user": user_message, "group": group_message}
