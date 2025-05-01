@@ -87,14 +87,16 @@ def handle_message(event):
                 users[user_id]["state"] = Normal()
 
             if isinstance(users[user_id]["state"], DataFinish):
-                users_col.update_one({"_id": user_id}, {
-                    "$set": {
+                users_col.replace_one(
+                    filter={"_id": user_id},
+                    replacement={
                         "_id": user_id,
                         "name": users[user_id]['user_info']["name"],
                         "session": users[user_id]['user_info']["session"],
                         "unit": users[user_id]['user_info']["unit"],
-                    }
-                })
+                    },
+                    upsert=True
+                )
 
             if not users[user_id]["state"].block_for_next_message():
                 users[user_id]["state"] = users[user_id]["state"].next(
